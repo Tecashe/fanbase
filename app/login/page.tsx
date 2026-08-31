@@ -40,6 +40,7 @@ function LoginForm() {
   }
 
   const handleGoogleAuth = async () => {
+    console.log('[Campfire Auth Client] Initiating Google / YouTube 1-Click OAuth flow...')
     setGoogleLoading(true)
     try {
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
@@ -48,11 +49,13 @@ function LoginForm() {
       )
       const data = await res.json()
       if (data.url) {
+        console.log('[Campfire Auth Client] Redirecting to Google OAuth URL:', data.url)
         window.location.href = data.url
       } else {
         throw new Error('Could not generate YouTube auth URL')
       }
     } catch (err: unknown) {
+      console.error('[Campfire Auth Client] Google OAuth initialization error:', err)
       setError(err instanceof Error ? err.message : 'YouTube Auth failed')
       setGoogleLoading(false)
     }
@@ -64,6 +67,7 @@ function LoginForm() {
       return
     }
 
+    console.log(`[Campfire Auth Client] Requesting OTP code for ${inputMode}:`, identifier)
     setLoading(true)
     setError(null)
 
@@ -75,11 +79,13 @@ function LoginForm() {
       })
 
       const data = await res.json()
+      console.log('[Campfire Auth Client] Send-code response:', data)
       if (!res.ok) throw new Error(data.error || 'Failed to send code')
 
       setCodeSent(true)
       showToast(data.message || 'Verification code generated!')
     } catch (err: unknown) {
+      console.error('[Campfire Auth Client] Send-code error:', err)
       setError(err instanceof Error ? err.message : 'Failed to send code')
     } finally {
       setLoading(false)
@@ -91,6 +97,8 @@ function LoginForm() {
     setLoading(true)
     setError(null)
 
+    console.log(`[Campfire Auth Client] Submitting login (${authMethod}) for ${identifier}...`)
+
     try {
       if (authMethod === 'code') {
         const res = await fetch('/api/auth/verify-code', {
@@ -100,8 +108,10 @@ function LoginForm() {
         })
 
         const data = await res.json()
+        console.log('[Campfire Auth Client] Verify-code response:', data)
         if (!res.ok) throw new Error(data.error || 'Invalid verification code')
 
+        console.log('[Campfire Auth Client] Code verified! Authenticated user:', data.user)
         showToast('Verification successful. Redirecting to dashboard...')
         setTimeout(() => {
           router.push(redirectPath)
@@ -115,8 +125,10 @@ function LoginForm() {
         })
 
         const data = await res.json()
+        console.log('[Campfire Auth Client] Password login response:', data)
         if (!res.ok) throw new Error(data.error || 'Invalid credentials')
 
+        console.log('[Campfire Auth Client] Password login successful! Authenticated user:', data.user)
         showToast('Login successful. Redirecting to dashboard...')
         setTimeout(() => {
           router.push(redirectPath)
@@ -124,6 +136,7 @@ function LoginForm() {
         }, 500)
       }
     } catch (err: unknown) {
+      console.error('[Campfire Auth Client] Login failed:', err)
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
       setLoading(false)

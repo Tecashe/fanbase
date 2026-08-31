@@ -40,6 +40,7 @@ function RegisterForm() {
   useEffect(() => {
     if (refCode) {
       setReferrerId(refCode)
+      console.log('[Campfire Auth Client] Referral invite detected:', refCode)
       showToast('Friend invite detected! +100 Bonus Points when you complete registration.')
     }
   }, [refCode])
@@ -50,6 +51,7 @@ function RegisterForm() {
   }
 
   const handleGoogleAuth = async () => {
+    console.log('[Campfire Auth Client] Initiating Google / YouTube Sign Up...')
     setGoogleLoading(true)
     try {
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
@@ -58,11 +60,13 @@ function RegisterForm() {
       )
       const data = await res.json()
       if (data.url) {
+        console.log('[Campfire Auth Client] Redirecting to Google OAuth:', data.url)
         window.location.href = data.url
       } else {
         throw new Error('Could not generate YouTube auth URL')
       }
     } catch (err: unknown) {
+      console.error('[Campfire Auth Client] Google OAuth error:', err)
       setError(err instanceof Error ? err.message : 'YouTube Auth failed')
       setGoogleLoading(false)
     }
@@ -82,6 +86,7 @@ function RegisterForm() {
         throw new Error(`Please enter your ${inputMode === 'email' ? 'email' : 'phone number'}`)
       }
 
+      console.log(`[Campfire Auth Client] Requesting verification OTP for ${inputMode}:`, identifier)
       const res = await fetch('/api/auth/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,6 +94,7 @@ function RegisterForm() {
       })
 
       const data = await res.json()
+      console.log('[Campfire Auth Client] Send-code response:', data)
       if (!res.ok) throw new Error(data.error || 'Failed to send verification code')
 
       if (data.previewCode) {
@@ -98,6 +104,7 @@ function RegisterForm() {
       setStep('verify')
       showToast(`Verification code sent to your ${inputMode === 'email' ? 'email' : 'phone'}!`)
     } catch (err: unknown) {
+      console.error('[Campfire Auth Client] Step 1 error:', err)
       setError(err instanceof Error ? err.message : 'Registration error')
     } finally {
       setLoading(false)
@@ -109,6 +116,8 @@ function RegisterForm() {
     setError(null)
     setLoading(true)
 
+    console.log(`[Campfire Auth Client] Verifying code ${verificationCode} and creating user...`)
+
     try {
       const verifyRes = await fetch('/api/auth/verify-code', {
         method: 'POST',
@@ -117,6 +126,7 @@ function RegisterForm() {
       })
 
       const verifyData = await verifyRes.json()
+      console.log('[Campfire Auth Client] Verify-code result:', verifyData)
       if (!verifyRes.ok) throw new Error(verifyData.error || 'Invalid verification code')
 
       const regRes = await fetch('/api/auth/register', {
@@ -132,14 +142,17 @@ function RegisterForm() {
       })
 
       const regData = await regRes.json()
+      console.log('[Campfire Auth Client] Registration result:', regData)
       if (!regRes.ok) throw new Error(regData.error || 'Registration failed')
 
+      console.log('[Campfire Auth Client] User registered successfully! Redirecting...')
       showToast('Account created successfully! Redirecting to dashboard...')
       setTimeout(() => {
         router.push(redirectPath)
         router.refresh()
       }, 500)
     } catch (err: unknown) {
+      console.error('[Campfire Auth Client] Registration error:', err)
       setError(err instanceof Error ? err.message : 'Registration failed')
     } finally {
       setLoading(false)
