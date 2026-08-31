@@ -18,6 +18,7 @@ enum RewardProgramType {
   monthly
   annual
   milestone
+  cash_prize
   custom
 }
 
@@ -35,6 +36,7 @@ enum RewardStatus {
 
 enum FulfillmentStatus {
   pending
+  processing
   fulfilled
   expired
 }
@@ -252,6 +254,8 @@ model Reward {
   rewardType        RewardProgramType @default(weekly)
   pointsRequired    Int?
   rankRequired      Int?
+  cashValue         Float?
+  currency          String            @default("KES")
   quantityAvailable Int?
   periodStart       DateTime          @default(now())
   periodEnd         DateTime
@@ -269,6 +273,12 @@ model RewardClaim {
   userId            String
   claimedAt         DateTime          @default(now())
   fulfillmentStatus FulfillmentStatus @default(pending)
+  cashValue         Float?
+  currency          String            @default("KES")
+  payoutMethod      String?
+  payoutAccount     String?
+  payoutReference   String?
+  paidAt            DateTime?
 
   reward            Reward            @relation(fields: [rewardId], references: [id], onDelete: Cascade)
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)

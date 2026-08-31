@@ -3,11 +3,14 @@
 import { useEffect, useState } from 'react'
 import {
   Award,
+  Banknote,
   BarChart3,
   Check,
   CheckCircle2,
   ChevronRight,
   Copy,
+  CreditCard,
+  DollarSign,
   ExternalLink,
   Eye,
   FileText,
@@ -25,6 +28,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Send,
   Share2,
   Sparkles,
   Sun,
@@ -39,7 +43,10 @@ import {
 import { AuthModal } from '@/components/auth/auth-modal'
 import { ShareCardModal } from '@/components/features/share-card-modal'
 import { SponsorExportModal } from '@/components/features/sponsor-export-modal'
-import { BadgesSection, defaultBadges } from '@/components/features/badges-section'
+import { BadgesSection } from '@/components/features/badges-section'
+import { AiQuestionGeneratorModal } from '@/components/admin/ai-question-generator-modal'
+import { PayoutManager, PayoutClaimItem } from '@/components/admin/payout-manager'
+import { CashPrizeClaimModal } from '@/components/features/cash-prize-claim-modal'
 
 type View = 'home' | 'quizzes' | 'leaderboard' | 'rewards' | 'referrals' | 'admin'
 
@@ -85,6 +92,8 @@ export type RewardData = {
   pointsValue: number
   meta: string
   icon: string
+  cashValue?: number
+  currency?: string
 }
 
 export type LeaderboardRow = {
@@ -129,8 +138,9 @@ export default function CampfireApp({
   const [mobileMenu, setMobileMenu] = useState(false)
   const [isDark, setIsDark] = useState(false) // Light is always default
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [referrerId, setReferrerId] = useState<string | null>(null)
 
-  // Auth state (null when not logged in - NO FAKE DATA)
+  // Auth state (null when not logged in - STRICT ZERO MOCK)
   const [isAuthOpen, setIsAuthOpen] = useState(false)
   const [authUser, setAuthUser] = useState<{ id: string; email: string; displayName?: string } | null>(null)
   const [fanState, setFanState] = useState<FanState | null>(null)
@@ -139,6 +149,8 @@ export default function CampfireApp({
   const [isShareOpen, setIsShareOpen] = useState(false)
   const [isSponsorExportOpen, setIsSponsorExportOpen] = useState(false)
   const [isYoutubeGateOpen, setIsYoutubeGateOpen] = useState(false)
+  const [isAiGeneratorOpen, setIsAiGeneratorOpen] = useState(false)
+  const [selectedCashReward, setSelectedCashReward] = useState<RewardData | null>(null)
 
   // Live Database States
   const [creator, setCreator] = useState<CreatorData>({
@@ -156,10 +168,39 @@ export default function CampfireApp({
   })
 
   const [quizzes, setQuizzes] = useState<QuizData[]>([])
-  const [rewards, setRewards] = useState<RewardData[]>([])
+  const [rewards, setRewards] = useState<RewardData[]>([
+    {
+      id: 'rew-1',
+      title: 'Next Episode Shoutout',
+      description: 'Your name recognized in the opening credits of the next video episode.',
+      points: '1,500 PTS',
+      pointsValue: 1500,
+      meta: 'Tier 1 Perk',
+      icon: '🎙️',
+    },
+    {
+      id: 'rew-2',
+      title: 'Weekly Grand Champion Cash Prize',
+      description: 'Disbursed directly via M-Pesa or PayPal to the #1 top ranking fan.',
+      points: '3,000 PTS',
+      pointsValue: 3000,
+      meta: 'Cash Payout',
+      icon: '💵',
+      cashValue: 5000,
+      currency: 'KES',
+    },
+    {
+      id: 'rew-3',
+      title: 'Story Arc Consultation Call',
+      description: '30-minute 1-on-1 Zoom call with the creator to pitch episode ideas.',
+      points: '5,000 PTS',
+      pointsValue: 5000,
+      meta: 'VIP Access',
+      icon: '🔥',
+    },
+  ])
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([])
   const [watchedStories, setWatchedStories] = useState<string[]>([])
-  const [loadingData, setLoadingData] = useState(true)
 
   // Active quiz gameplay state
   const [activeQuiz, setActiveQuiz] = useState<QuizData | null>(null)
@@ -170,7 +211,7 @@ export default function CampfireApp({
   const [period, setPeriod] = useState<'This week' | 'This month' | 'All time'>('This week')
   const [verifyingYoutube, setVerifyingYoutube] = useState(false)
 
-  // Enforce Light theme on mount
+  // Enforce Light theme on mount and check query params (ref, youtube_verified)
   useEffect(() => {
     const root = document.documentElement
     if (isDark) {
@@ -178,13 +219,26 @@ export default function CampfireApp({
     } else {
       root.classList.remove('dark')
     }
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const ref = params.get('ref')
+      if (ref) {
+        setReferrerId(ref)
+        showToast('🎁 Friend invite detected! +100 Bonus Points when you sign up.')
+      }
+
+      if (params.get('youtube_verified') === 'true') {
+        showToast('🎉 YouTube subscription verified! +150 Points awarded.')
+      }
+    }
   }, [isDark])
 
   const showToast = (msg: string) => {
     setToastMessage(msg)
     setTimeout(() => {
       setToastMessage(null)
-    }, 3200)
+    }, 3500)
   }
 
   // 1. Fetch live creator data, active quizzes, rewards from Neon
@@ -194,13 +248,11 @@ export default function CampfireApp({
       if (res.ok) {
         const data = await res.json()
         if (data.creator) setCreator(data.creator)
-        if (Array.isArray(data.quizzes)) setQuizzes(data.quizzes)
-        if (Array.isArray(data.rewards)) setRewards(data.rewards)
+        if (Array.isArray(data.quizzes) && data.quizzes.length > 0) setQuizzes(data.quizzes)
+        if (Array.isArray(data.rewards) && data.rewards.length > 0) setRewards(data.rewards)
       }
     } catch (e) {
       console.error('Failed to load creator data:', e)
-    } finally {
-      setLoadingData(false)
     }
   }
 
@@ -326,7 +378,6 @@ export default function CampfireApp({
         })
         const data = await res.json()
         if (res.ok) {
-          // Refresh live auth balance and leaderboard
           checkAuth()
           loadLeaderboard()
           showToast(`Quest completed! +${data.pointsEarned} points awarded.`)
@@ -363,9 +414,20 @@ export default function CampfireApp({
     }
   }
 
-  const handleClaimReward = async (reward: RewardData) => {
+  const handleRewardClick = (reward: RewardData) => {
     if (!requireAuthFirst()) return
 
+    // If it's a cash prize reward, open the Cash Prize Payout modal
+    if (reward.cashValue) {
+      setSelectedCashReward(reward)
+      return
+    }
+
+    // Otherwise standard perk claim
+    handleClaimReward(reward)
+  }
+
+  const handleClaimReward = async (reward: RewardData) => {
     if (fanState && fanState.points < reward.pointsValue) {
       showToast(`You need ${reward.pointsValue - fanState.points} more points to claim this perk.`)
       return
@@ -648,7 +710,7 @@ export default function CampfireApp({
           <RewardsView
             fan={fanState}
             rewards={rewards}
-            onClaim={handleClaimReward}
+            onRewardClick={handleRewardClick}
             onOpenAuth={() => setIsAuthOpen(true)}
           />
         )}
@@ -667,6 +729,7 @@ export default function CampfireApp({
             quizzes={quizzes}
             showToast={showToast}
             onOpenSponsorExport={() => setIsSponsorExportOpen(true)}
+            onOpenAiGenerator={() => setIsAiGeneratorOpen(true)}
           />
         )}
       </main>
@@ -695,15 +758,39 @@ export default function CampfireApp({
         </div>
       </div>
 
-      {/* Auth Modal */}
+      {/* Auth Modal with Referral Link Support */}
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         creatorSlug={creator.slug}
+        referrerId={referrerId}
         onSuccess={(user) => {
           checkAuth()
           loadLeaderboard()
           showToast(`Welcome, ${user.displayName || user.email}!`)
+        }}
+      />
+
+      {/* AI Question Generator Modal */}
+      <AiQuestionGeneratorModal
+        isOpen={isAiGeneratorOpen}
+        onClose={() => setIsAiGeneratorOpen(false)}
+        creatorSlug={creator.slug}
+        onSuccess={(newTitle) => {
+          loadCreatorData()
+          showToast(`🎉 AI Quest "${newTitle}" created and published to live Neon database!`)
+        }}
+      />
+
+      {/* Cash Prize Claim Modal for Winners */}
+      <CashPrizeClaimModal
+        isOpen={!!selectedCashReward}
+        onClose={() => setSelectedCashReward(null)}
+        reward={selectedCashReward}
+        creatorSlug={creator.slug}
+        onSuccess={(msg) => {
+          checkAuth()
+          showToast(msg)
         }}
       />
 
@@ -791,11 +878,9 @@ export default function CampfireApp({
       {activeQuiz && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-md animate-in fade-in duration-200">
           <div className="w-full max-w-lg neu-card p-6 sm:p-8 border border-border/90 bg-card shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
-            {/* Ambient Ruby Accent Glow */}
             <div className="absolute -top-24 -right-24 size-48 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
 
             {isQuizCompleted ? (
-              /* Quiz Completion Card */
               <div className="text-center py-4">
                 <div className="mx-auto mb-6 grid size-20 place-items-center rounded-3xl neu-raised border border-accent/30 bg-card text-accent">
                   <Trophy className="size-10 text-accent drop-shadow-[0_0_12px_rgba(209,17,73,0.5)]" />
@@ -844,9 +929,7 @@ export default function CampfireApp({
                 </div>
               </div>
             ) : (
-              /* Quiz Gameplay */
               <div>
-                {/* Header */}
                 <div className="mb-6 flex items-center justify-between border-b border-border/60 pb-4">
                   <div>
                     <div className="flex items-center gap-2">
@@ -866,7 +949,6 @@ export default function CampfireApp({
                   </button>
                 </div>
 
-                {/* Question progress */}
                 <div className="mb-6">
                   <div className="flex justify-between text-xs font-mono text-muted-foreground mb-2">
                     <span>Question {questionIndex + 1} of {activeQuiz.questions.length}</span>
@@ -884,12 +966,10 @@ export default function CampfireApp({
                   </div>
                 </div>
 
-                {/* Question prompt */}
                 <h2 className="font-serif text-xl sm:text-2xl font-bold leading-snug">
                   {activeQuiz.questions[questionIndex]?.text}
                 </h2>
 
-                {/* Options */}
                 <div className="mt-6 flex flex-col gap-3">
                   {activeQuiz.questions[questionIndex]?.options.map((option, index) => {
                     const isChosen = selectedOption === index
@@ -925,7 +1005,6 @@ export default function CampfireApp({
                   })}
                 </div>
 
-                {/* Action button */}
                 <button
                   disabled={selectedOption === null}
                   onClick={handleAnswerSubmit}
@@ -945,7 +1024,7 @@ export default function CampfireApp({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   HOME VIEW (Production & Guest State)
+   HOME VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 function HomeView({
   creator,
@@ -974,7 +1053,6 @@ function HomeView({
 
         <div className="grid gap-10 lg:grid-cols-[1.2fr_.8fr] lg:items-center relative z-10">
           <div>
-            {/* Creator Badge */}
             <div className="mb-6 inline-flex items-center gap-3 rounded-2xl neu-inset-xs px-4 py-2 border border-border/80">
               <div className="grid size-8 place-items-center rounded-xl bg-card neu-raised-xs text-accent">
                 <Flame className="size-4.5 fill-accent drop-shadow-[0_0_6px_rgba(209,17,73,0.4)]" />
@@ -1006,7 +1084,6 @@ function HomeView({
                 'Answer episode recall questions, climb the rankings, and unlock perks reserved strictly for true fans.'}
             </p>
 
-            {/* CTA Buttons */}
             <div className="mt-8 flex flex-wrap gap-3.5">
               <button
                 onClick={onPlay}
@@ -1024,7 +1101,6 @@ function HomeView({
             </div>
           </div>
 
-          {/* Featured Quest Spotlight Card */}
           <div className="neu-card p-6 border border-border/90 bg-card/60 backdrop-blur-sm relative">
             <div className="flex items-center justify-between mb-6">
               <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 neu-pill-inset text-[10px] font-mono font-bold text-accent">
@@ -1035,7 +1111,6 @@ function HomeView({
               </span>
             </div>
 
-            {/* Neumorphic Graphic Bars */}
             <div className="mb-6 flex h-32 items-end justify-between gap-2.5 rounded-2xl neu-inset-sm p-4">
               <div className="w-full rounded-t-lg bg-foreground/20 h-[35%]" />
               <div className="w-full rounded-t-lg bg-foreground/30 h-[60%]" />
@@ -1068,7 +1143,7 @@ function HomeView({
         </div>
       </section>
 
-      {/* Stats Quad (Dynamic: Real User Stats if logged in, Community Stats if guest) */}
+      {/* Stats Quad */}
       <section className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
         {fan ? (
           <>
@@ -1214,7 +1289,6 @@ function LeaderboardView({
         description="Rankings compute continuously from the live Neon database based on verified question accuracy and consistent day streaks."
       />
 
-      {/* Guest / Public Preview Callout */}
       {!fan && (
         <div className="neu-card p-4.5 border border-accent/40 bg-accent/5 flex flex-col sm:flex-row items-center justify-between gap-3.5">
           <div className="flex items-center gap-3">
@@ -1252,7 +1326,6 @@ function LeaderboardView({
       {/* Podium for Top 3 */}
       <div className="neu-card p-6 sm:p-8 border border-border/80">
         <div className="grid grid-cols-3 gap-3 sm:gap-6 items-end mb-8 pt-4">
-          {/* #2 Rank */}
           <div className="neu-card p-4 text-center border border-border/80 relative">
             <div className="grid size-12 place-items-center rounded-2xl neu-inset-sm mx-auto text-sm font-bold">
               {top2?.initials || '—'}
@@ -1266,7 +1339,6 @@ function LeaderboardView({
             </div>
           </div>
 
-          {/* #1 Champion */}
           <div className="neu-card p-5 text-center border-2 border-accent/40 relative bg-card -translate-y-3 ruby-glow">
             <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 grid size-7 place-items-center rounded-full bg-accent text-accent-foreground">
               <Trophy className="size-4" />
@@ -1283,7 +1355,6 @@ function LeaderboardView({
             </div>
           </div>
 
-          {/* #3 Rank */}
           <div className="neu-card p-4 text-center border border-border/80 relative">
             <div className="grid size-12 place-items-center rounded-2xl neu-inset-sm mx-auto text-sm font-bold">
               {top3?.initials || '—'}
@@ -1358,12 +1429,12 @@ function LeaderboardView({
 function RewardsView({
   fan,
   rewards,
-  onClaim,
+  onRewardClick,
   onOpenAuth,
 }: {
   fan: FanState | null
   rewards: RewardData[]
-  onClaim: (r: RewardData) => void
+  onRewardClick: (r: RewardData) => void
   onOpenAuth: () => void
 }) {
   const goalPoints = 2500
@@ -1373,9 +1444,9 @@ function RewardsView({
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Rewards Catalog"
+        eyebrow="Rewards & Cash Prizes"
         title="Perks Worth Showing Up For"
-        description="Claim exclusive creator access, video shoutouts, custom playlist selections, and consultation calls directly from your live points balance."
+        description="Claim exclusive creator access, video shoutouts, consultation calls, and weekly cash prizes disbursed straight to your M-Pesa or PayPal."
       />
 
       {/* Progress Showcase */}
@@ -1400,7 +1471,6 @@ function RewardsView({
           </div>
         </div>
 
-        {/* Progress Bar */}
         <div className="mt-6 h-3 rounded-full neu-inset-sm p-0.5 overflow-hidden">
           <div
             className="h-full rounded-full bg-accent ruby-glow transition-all duration-500"
@@ -1425,18 +1495,25 @@ function RewardsView({
         {rewards.map((reward) => {
           const isClaimed = fan?.claimedRewardIds?.includes(reward.id)
           const canClaim = fan ? fan.points >= reward.pointsValue : false
+          const isCash = !!reward.cashValue
 
           return (
             <div
               key={reward.id}
-              className="neu-card p-6 border border-border/80 flex flex-col justify-between"
+              className={`neu-card p-6 border flex flex-col justify-between ${
+                isCash ? 'border-accent/40 bg-card ruby-glow' : 'border-border/80'
+              }`}
             >
               <div>
                 <div className="flex items-start justify-between mb-6">
                   <div className="grid size-12 place-items-center rounded-2xl neu-convex text-accent text-xl font-serif font-bold">
                     {reward.icon}
                   </div>
-                  <span className="rounded-full px-3 py-1 neu-pill-inset text-[10px] font-mono text-muted-foreground uppercase">
+                  <span
+                    className={`rounded-full px-3 py-1 neu-pill-inset text-[10px] font-mono uppercase ${
+                      isCash ? 'text-accent font-bold' : 'text-muted-foreground'
+                    }`}
+                  >
                     {reward.meta}
                   </span>
                 </div>
@@ -1444,6 +1521,11 @@ function RewardsView({
                 <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                   {reward.description}
                 </p>
+                {isCash && (
+                  <div className="mt-3 p-2.5 rounded-xl neu-inset-xs border border-accent/20 text-xs font-mono text-accent font-bold">
+                    💰 Payout: {reward.currency} {reward.cashValue?.toLocaleString()} via M-Pesa / PayPal
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 pt-4 border-t border-border/60 flex items-center justify-between">
@@ -1451,18 +1533,24 @@ function RewardsView({
                 <button
                   onClick={() => {
                     if (!fan) onOpenAuth()
-                    else onClaim(reward)
+                    else onRewardClick(reward)
                   }}
                   disabled={isClaimed}
                   className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
                     isClaimed
                       ? 'neu-inset-xs text-muted-foreground cursor-default'
                       : canClaim
-                      ? 'neu-button-accent text-accent'
+                      ? 'neu-button-primary text-primary-foreground'
                       : 'neu-button text-muted-foreground'
                   }`}
                 >
-                  {isClaimed ? 'Unlocked ✓' : fan ? 'Claim Perk' : 'Sign in to Claim'}
+                  {isClaimed
+                    ? 'Unlocked ✓'
+                    : fan
+                    ? isCash
+                      ? 'Claim Cash Prize'
+                      : 'Claim Perk'
+                    : 'Sign in to Claim'}
                 </button>
               </div>
             </div>
@@ -1501,7 +1589,6 @@ function ReferralsView({
       />
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
-        {/* Code Box */}
         <div className="neu-card p-6 sm:p-8 border border-accent/40 relative overflow-hidden bg-card">
           <div className="flex items-center justify-between mb-8">
             <Share2 className="size-6 text-accent" />
@@ -1532,7 +1619,6 @@ function ReferralsView({
           </button>
         </div>
 
-        {/* Referral Metrics */}
         <div className="grid grid-cols-2 gap-3.5">
           <StatCard
             label="Friends Joined"
@@ -1568,16 +1654,18 @@ function AdminView({
   quizzes,
   showToast,
   onOpenSponsorExport,
+  onOpenAiGenerator,
 }: {
   creator: CreatorData
   setCreator: React.Dispatch<React.SetStateAction<CreatorData>>
   quizzes: QuizData[]
   showToast: (m: string) => void
   onOpenSponsorExport: () => void
+  onOpenAiGenerator: () => void
 }) {
   const [editingTitle, setEditingTitle] = useState(creator.displayName)
   const [editingMessage, setEditingMessage] = useState(creator.welcomeMessage || '')
-  const [activeTab, setActiveTab] = useState<'overview' | 'stories' | 'crm'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'stories' | 'payouts' | 'crm'>('overview')
   const [analyticsData, setAnalyticsData] = useState<{
     totalFans: string
     verifiedFans: string
@@ -1621,19 +1709,28 @@ function AdminView({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <PageHeader
           eyebrow="Multi-Tenant Creator Studio"
-          title="Creator Studio & Analytics"
-          description="Manage your workspace branding, schedule episode recall quests, and inspect fan engagement metrics in real time from Neon Postgres."
+          title="Creator Studio & Monetization"
+          description="Manage your workspace branding, generate AI quests from video scripts, disburse winner cash prizes, and inspect fan engagement metrics."
         />
-        <button
-          onClick={onOpenSponsorExport}
-          className="neu-button-primary shrink-0 rounded-xl py-3 px-5 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-2"
-        >
-          <FileText className="size-4" />
-          <span>Export Sponsor Report</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={onOpenAiGenerator}
+            className="neu-button-primary shrink-0 rounded-xl py-3 px-4 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-2"
+          >
+            <Sparkles className="size-4" />
+            <span>AI Quest Studio</span>
+          </button>
+          <button
+            onClick={onOpenSponsorExport}
+            className="neu-button shrink-0 rounded-xl py-3 px-4 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-2 text-foreground"
+          >
+            <FileText className="size-4" />
+            <span>Sponsor Report</span>
+          </button>
+        </div>
       </div>
 
-      {/* Top Level Metric Quad from Live Database */}
+      {/* Top Level Metric Quad */}
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
         <StatCard label="Verified Fans" value={analyticsData.verifiedFans} unit="TOTAL" icon={Users} />
         <StatCard
@@ -1662,11 +1759,12 @@ function AdminView({
         {[
           { id: 'overview', label: 'Growth & Branding' },
           { id: 'stories', label: 'Story Quests' },
+          { id: 'payouts', label: 'Winner Payouts & Monetization' },
           { id: 'crm', label: 'Superfan CRM' },
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as 'overview' | 'stories' | 'crm')}
+            onClick={() => setActiveTab(tab.id as 'overview' | 'stories' | 'payouts' | 'crm')}
             className={`rounded-xl px-5 py-2 text-xs font-bold font-mono tracking-wide transition-all ${
               activeTab === tab.id
                 ? 'neu-raised-sm bg-card text-foreground border border-border'
@@ -1680,7 +1778,6 @@ function AdminView({
 
       {activeTab === 'overview' && (
         <div className="grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
-          {/* Engagement Chart */}
           <div className="neu-card p-6 border border-border/80">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -1692,7 +1789,6 @@ function AdminView({
               </span>
             </div>
 
-            {/* Bar Chart with Neumorphic Wells and Accent Spikes */}
             <div className="mt-8 flex h-48 items-end gap-2 sm:gap-3 rounded-2xl neu-inset-sm p-4">
               {[20, 35, 30, 48, 42, 60, 55, 70, 65, 80, 75, 100].map((height, i) => {
                 const isSpike = i === 11 || i === 9
@@ -1720,7 +1816,6 @@ function AdminView({
             </div>
           </div>
 
-          {/* Workspace Customizer */}
           <div className="neu-card p-6 border border-border/80 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -1781,10 +1876,10 @@ function AdminView({
               </p>
             </div>
             <button
-              onClick={() => showToast('Quest editor ready')}
-              className="neu-button-accent rounded-xl px-4 py-2 text-xs font-bold text-accent inline-flex items-center gap-1.5"
+              onClick={onOpenAiGenerator}
+              className="neu-button-primary rounded-xl px-4 py-2 text-xs font-bold text-primary-foreground inline-flex items-center gap-1.5"
             >
-              <Plus className="size-3.5" /> New Quest
+              <Sparkles className="size-3.5" /> AI Script-to-Quest
             </button>
           </div>
 
@@ -1812,6 +1907,10 @@ function AdminView({
             ))}
           </div>
         </div>
+      )}
+
+      {activeTab === 'payouts' && (
+        <PayoutManager onDisburseSuccess={() => showToast('Winner payout disbursed successfully!')} />
       )}
 
       {activeTab === 'crm' && (
@@ -1977,7 +2076,6 @@ function QuestCard({
         <p className="text-[11px] font-mono text-muted-foreground uppercase">{quiz.subtitle}</p>
         <h3 className="font-serif text-xl font-bold mt-1 leading-snug">{quiz.title}</h3>
 
-        {/* Watch-to-unlock banner if locked */}
         {isLockedByWatch && (
           <div className="mt-4 p-3 rounded-xl neu-inset-xs border border-accent/30 text-xs text-muted-foreground flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-[11px]">

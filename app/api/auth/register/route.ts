@@ -5,7 +5,7 @@ import { hashPassword, createSession, AUTH_COOKIE_NAME } from '@/lib/custom-auth
 
 export async function POST(request: Request) {
   try {
-    const { email, password, displayName, creatorSlug } = await request.json()
+    const { email, password, displayName, creatorSlug, referrerId } = await request.json()
 
     if (!email || !password) {
       return NextResponse.json(
@@ -47,21 +47,66 @@ export async function POST(request: Request) {
       })
 
       // Link to creator if provided
-      if (creatorSlug) {
-        const creator = await prisma.creator.findUnique({
-          where: { slug: creatorSlug },
-        })
-        if (creator) {
-          await prisma.userCreatorLink.create({
-            data: {
-              userId: user.id,
-              creatorId: creator.id,
-              pointsBalance: 100, // Welcome bonus points
-              currentStreak: 1,
-              longestStreak: 1,
+      const slug = creatorSlug || 'mkurugenzi'
+      const creator = await prisma.creator.findUnique({
+        where: { slug },
+      })
+
+      if (creator) {
+        let initialPoints = 100 // Standard welcome bonus
+
+        // Check referral attribution
+        let validReferrer = null
+        if (referrerId) {
+          validReferrer = await prisma.user.findFirst({
+            where: {
+              OR: [{ id: referrerId }, { email: referrerId }],
             },
           })
         }
+
+        if (validReferrer && validReferrer.id !== user.id) {
+          initialPoints += 100 // Extra 100 pts for joining via referral
+
+          // Award 100 pts to the referrer
+          await prisma.userCreatorLink.upsert({
+            where: {
+              userId_creatorId: {
+                userId: validReferrer.id,
+                creatorId: creator.id,
+              },
+            },
+            update: {
+              pointsBalance: { increment: 100 },
+            },
+            create: {
+              userId: validReferrer.id,
+              creatorId: creator.id,
+              pointsBalance: 200,
+              currentStreak: 1,
+            },
+          })
+
+          // Record referral entry
+          await prisma.referral.create({
+            data: {
+              creatorId: creator.id,
+              referrerUserId: validReferrer.id,
+              referredUserId: user.id,
+              pointsAwarded: 100,
+            },
+          })
+        }
+
+        await prisma.userCreatorLink.create({
+          data: {
+            userId: user.id,
+            creatorId: creator.id,
+            pointsBalance: initialPoints,
+            currentStreak: 1,
+            longestStreak: 1,
+          },
+        })
       }
 
       token = await createSession(user.id)

@@ -1,18 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { Flame, Lock, Mail, User, X, Check, ArrowRight } from 'lucide-react'
+import { ArrowRight, Flame, Lock, Mail, Sparkles, User, X } from 'lucide-react'
 
 export function AuthModal({
   isOpen,
   onClose,
   onSuccess,
   creatorSlug,
+  referrerId,
 }: {
   isOpen: boolean
   onClose: () => void
   onSuccess: (userData: { id: string; email: string; displayName?: string }) => void
   creatorSlug: string
+  referrerId?: string | null
 }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
@@ -35,6 +37,7 @@ export function AuthModal({
         password,
         displayName: mode === 'register' ? displayName : undefined,
         creatorSlug,
+        referrerId: mode === 'register' ? referrerId : undefined,
       }
 
       const res = await fetch(endpoint, {
@@ -80,10 +83,20 @@ export function AuthModal({
               {mode === 'login' ? 'Welcome Back' : 'Join the Inner Circle'}
             </h2>
             <p className="text-xs font-mono text-muted-foreground">
-              {mode === 'login' ? 'Sign in to access your quests & rank' : 'Create an account to start earning points'}
+              {mode === 'login'
+                ? 'Sign in to access your quests & live points'
+                : 'Create an account to start earning rewards'}
             </p>
           </div>
         </div>
+
+        {/* Referral Welcome Tag */}
+        {mode === 'register' && referrerId && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl p-2.5 neu-inset-xs border border-accent/30 text-xs font-mono text-accent">
+            <Sparkles className="size-4 shrink-0 text-accent" />
+            <span>+100 Bonus Points unlocked from your friend's invite!</span>
+          </div>
+        )}
 
         {error && (
           <div className="mb-5 rounded-xl p-3 text-xs font-medium border border-destructive/30 bg-destructive/10 text-destructive">
