@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowRight, Flame, KeyRound, Lock, Mail, RefreshCw, Sparkles, User, X } from 'lucide-react'
+import { ArrowRight, Flame, KeyRound, Lock, Mail, RefreshCw, Sparkles, User, Video, X } from 'lucide-react'
 
 function LoginForm() {
   const router = useRouter()
@@ -17,12 +17,30 @@ function LoginForm() {
   const [verificationCode, setVerificationCode] = useState('')
   const [codeSent, setCodeSent] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   const showToast = (msg: string) => {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 3500)
+  }
+
+  const handleGoogleAuth = async () => {
+    setGoogleLoading(true)
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      const res = await fetch(`/api/auth/youtube/url?creatorSlug=${creatorSlug}&origin=${encodeURIComponent(origin)}`)
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        throw new Error('Could not generate YouTube auth URL')
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'YouTube Auth failed')
+      setGoogleLoading(false)
+    }
   }
 
   const handleSendCode = async () => {
@@ -113,6 +131,26 @@ function LoginForm() {
         <p className="text-xs font-mono text-muted-foreground mt-1">
           Access your verified quests, live points, and creator perks
         </p>
+      </div>
+
+      {/* 1-Click YouTube / Google Login */}
+      <button
+        type="button"
+        disabled={googleLoading}
+        onClick={handleGoogleAuth}
+        className="w-full mb-6 neu-button-accent rounded-xl py-3 px-4 text-xs font-bold text-accent inline-flex items-center justify-center gap-2.5 transition-all hover:scale-[1.01] active:scale-[0.99]"
+      >
+        <Video className={`size-4 ${googleLoading ? 'animate-spin' : ''}`} />
+        <span>{googleLoading ? 'Connecting to Google...' : 'Continue with YouTube / Google'}</span>
+      </button>
+
+      <div className="relative mb-6 text-center">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border/60" />
+        </div>
+        <span className="relative bg-card px-3 text-[10px] font-mono uppercase text-muted-foreground">
+          or sign in with email
+        </span>
       </div>
 
       <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl neu-inset-xs border border-border/60 bg-background/60 mb-6">

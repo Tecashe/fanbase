@@ -1,23 +1,53 @@
 import { prisma } from './db'
 
-const YOUTUBE_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly'
+const GOOGLE_SCOPES = [
+  'openid',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+  'https://www.googleapis.com/auth/youtube.readonly',
+].join(' ')
 
-export function getGoogleOAuthUrl(creatorSlug: string, stateToken?: string): string {
+export function getGoogleOAuthUrl(creatorSlug: string = 'mkurugenzi', origin?: string): string {
   const clientId = process.env.GOOGLE_CLIENT_ID || 'mock-google-client-id'
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/youtube/callback`
-  const state = JSON.stringify({ creatorSlug, token: stateToken || 'csrf-safe' })
+  const baseAppUrl = origin || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const redirectUri = `${baseAppUrl}/api/auth/youtube/callback`
+  const state = JSON.stringify({ creatorSlug, origin: baseAppUrl })
 
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: YOUTUBE_SCOPE,
+    scope: GOOGLE_SCOPES,
     access_type: 'offline',
-    prompt: 'consent',
+    prompt: 'select_account consent',
     state,
   })
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
+}
+
+/**
+ * Fetches user profile from Google using the access token.
+ */
+export async function getGoogleUserProfile(accessToken: string): Promise<{
+  email: string
+  name: string
+  picture?: string
+} | null> {
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return {
+      email: data.email,
+      name: data.name || data.email?.split('@')[0],
+      picture: data.picture,
+    }
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -35,7 +65,6 @@ export async function verifyYouTubeSubscription({
   quotaExceeded?: boolean
   error?: string
 }> {
-  // If in demo mode or mock credentials, simulate realistic verification
   if (!process.env.GOOGLE_CLIENT_ID || accessToken.startsWith('mock-')) {
     return {
       verified: true,
@@ -66,9 +95,10 @@ export async function verifyYouTubeSubscription({
     }
 
     if (!res.ok) {
+      // If channelId query returns 404 or empty, user might not be subscribed yet
       return {
         verified: false,
-        error: `YouTube verification failed with status ${res.status}`,
+        error: `YouTube check status: ${res.status}`,
       }
     }
 

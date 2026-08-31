@@ -714,23 +714,49 @@ export default function DashboardLayout({
               </p>
 
               <div className="mt-6 flex flex-col gap-3">
-                <a
-                  href={creator.channelUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="neu-button-accent rounded-xl py-3 px-4 text-xs font-bold inline-flex items-center justify-center gap-2 text-accent"
-                >
-                  <ExternalLink className="size-4" />
-                  <span>1. Subscribe on YouTube</span>
-                </a>
                 <button
-                  disabled={verifyingYoutube}
-                  onClick={handleVerifyYouTube}
-                  className="neu-button-primary rounded-xl py-3.5 px-4 text-xs font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2 disabled:opacity-50"
+                  type="button"
+                  onClick={async () => {
+                    setVerifyingYoutube(true)
+                    try {
+                      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+                      const res = await fetch(`/api/auth/youtube/url?creatorSlug=${creator.slug}&origin=${encodeURIComponent(origin)}`)
+                      const data = await res.json()
+                      if (data.url) {
+                        window.location.href = data.url
+                      }
+                    } catch {
+                      showToast('Could not initiate Google OAuth')
+                      setVerifyingYoutube(false)
+                    }
+                  }}
+                  className="neu-button-primary rounded-xl py-3 px-4 text-xs font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2 text-primary-foreground"
                 >
-                  <RefreshCw className={`size-4 ${verifyingYoutube ? 'animate-spin' : ''}`} />
-                  <span>{verifyingYoutube ? 'Verifying...' : '2. Check My Subscription'}</span>
+                  <Video className="size-4" />
+                  <span>Verify with Google OAuth (Live)</span>
                 </button>
+                <div className="flex items-center justify-center gap-2 text-[10px] font-mono text-muted-foreground uppercase">
+                  <span>or quick check</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <a
+                    href={creator.channelUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="neu-button-accent rounded-xl py-2.5 px-3 text-xs font-bold inline-flex items-center justify-center gap-1.5 text-accent text-center"
+                  >
+                    <ExternalLink className="size-3.5" />
+                    <span>1. Channel</span>
+                  </a>
+                  <button
+                    disabled={verifyingYoutube}
+                    onClick={handleVerifyYouTube}
+                    className="neu-button rounded-xl py-2.5 px-3 text-xs font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-50 text-center"
+                  >
+                    <RefreshCw className={`size-3.5 ${verifyingYoutube ? 'animate-spin' : ''}`} />
+                    <span>{verifyingYoutube ? 'Checking...' : '2. Fast Check'}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

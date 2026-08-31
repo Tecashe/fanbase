@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getAuthUser } from '@/lib/custom-auth'
+import { cookies } from 'next/headers'
+import { getAuthUser, createSession, AUTH_COOKIE_NAME } from '@/lib/custom-auth'
 import { prisma } from '@/lib/db'
-import { verifyYouTubeSubscription } from '@/lib/youtube'
+import { verifyYouTubeSubscription, getGoogleUserProfile } from '@/lib/youtube'
 
 export async function GET(request: Request) {
   try {
@@ -9,22 +10,25 @@ export async function GET(request: Request) {
     const code = searchParams.get('code')
     const state = searchParams.get('state')
     let creatorSlug = 'mkurugenzi'
+    let appOrigin = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
     if (state) {
       try {
         const parsed = JSON.parse(state)
         if (parsed.creatorSlug) creatorSlug = parsed.creatorSlug
+        if (parsed.origin) appOrigin = parsed.origin
       } catch {
         // use default
       }
     }
 
-    const authUser = await getAuthUser()
-
-    // Exchange code for Google Access Token
+    let authUser = await getAuthUser()
     let accessToken = 'mock-access-token'
+    let googleProfile: { email: string; name: string; picture?: string } | null = null
+
+    // 1. Exchange OAuth code with Google for Access Token
     if (code && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-      const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/youtube/callback`
+      const redirectUri = `${appOrigin}/api/auth/youtube/callback`
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -40,53 +44,104 @@ export async function GET(request: Request) {
       if (tokenRes.ok) {
         const tokenData = await tokenRes.json()
         accessToken = tokenData.access_token
+
+        // Fetch user profile from Google
+        googleProfile = await getGoogleUserProfile(accessToken)
+      } else {
+        const errText = await tokenRes.text()
+        console.error('[Google Token Exchange Failed]', errText)
       }
     }
 
-    if (authUser && process.env.DATABASE_URL) {
-      const creator = await prisma.creator.findUnique({
-        where: { slug: creatorSlug },
-      })
-
-      if (creator) {
-        const verification = await verifyYouTubeSubscription({
-          accessToken,
-          creatorChannelId: creator.youtubeChannelId || 'UC_example',
+    if (process.env.DATABASE_URL) {
+      // 2. If user is not logged in, authenticate or register them via Google Profile
+      if (!authUser && googleProfile?.email) {
+        const normalizedEmail = googleProfile.email.toLowerCase().trim()
+        
+        let user = await prisma.user.findUnique({
+          where: { email: normalizedEmail },
         })
 
-        const expiresAt = new Date()
-        expiresAt.setDate(expiresAt.getDate() + 30) // 30-day periodic re-check
+        if (!user) {
+          // Register new user via Google
+          user = await prisma.user.create({
+            data: {
+              email: normalizedEmail,
+              displayName: googleProfile.name || normalizedEmail.split('@')[0],
+              avatarUrl: googleProfile.picture,
+              role: 'user',
+              emailVerified: true,
+            },
+          })
+        }
 
-        await prisma.userCreatorLink.upsert({
-          where: {
-            userId_creatorId: {
+        authUser = {
+          id: user.id,
+          email: user.email,
+          displayName: user.displayName,
+        }
+
+        // Establish session cookie
+        const token = await createSession(user.id)
+        const cookieStore = await cookies()
+        cookieStore.set({
+          name: AUTH_COOKIE_NAME,
+          value: token,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 30 * 24 * 60 * 60,
+        })
+      }
+
+      // 3. Link to creator and check YouTube Subscription
+      if (authUser) {
+        const creator = await prisma.creator.findUnique({
+          where: { slug: creatorSlug },
+        })
+
+        if (creator) {
+          const verification = await verifyYouTubeSubscription({
+            accessToken,
+            creatorChannelId: creator.youtubeChannelId || 'UC_example',
+          })
+
+          const expiresAt = new Date()
+          expiresAt.setDate(expiresAt.getDate() + 30) // 30-day verification validity
+
+          await prisma.userCreatorLink.upsert({
+            where: {
+              userId_creatorId: {
+                userId: authUser.id,
+                creatorId: creator.id,
+              },
+            },
+            update: {
+              youtubeSubscriptionVerified: verification.verified,
+              youtubeVerifiedAt: verification.verified ? new Date() : null,
+              subscriptionCheckExpiresAt: expiresAt,
+              pointsBalance: verification.verified ? { increment: 150 } : undefined,
+              lastActiveAt: new Date(),
+            },
+            create: {
               userId: authUser.id,
               creatorId: creator.id,
+              youtubeSubscriptionVerified: verification.verified,
+              youtubeVerifiedAt: verification.verified ? new Date() : null,
+              subscriptionCheckExpiresAt: expiresAt,
+              pointsBalance: verification.verified ? 250 : 100,
+              currentStreak: 1,
+              longestStreak: 1,
             },
-          },
-          update: {
-            youtubeSubscriptionVerified: verification.verified,
-            youtubeVerifiedAt: verification.verified ? new Date() : null,
-            subscriptionCheckExpiresAt: expiresAt,
-            pointsBalance: verification.verified ? { increment: 150 } : undefined,
-          },
-          create: {
-            userId: authUser.id,
-            creatorId: creator.id,
-            youtubeSubscriptionVerified: verification.verified,
-            youtubeVerifiedAt: verification.verified ? new Date() : null,
-            subscriptionCheckExpiresAt: expiresAt,
-            pointsBalance: verification.verified ? 250 : 100,
-          },
-        })
+          })
+        }
       }
     }
 
-    return NextResponse.redirect(
-      new URL(`/${creatorSlug}?youtube_verified=true`, request.url),
-    )
+    return NextResponse.redirect(`${appOrigin}/app?youtube_auth=success`)
   } catch (err: unknown) {
     console.error('[YouTube Callback Error]', err)
-    return NextResponse.redirect(new URL('/?error=youtube_auth_failed', request.url))
+    return NextResponse.redirect(new URL('/login?error=youtube_auth_failed', request.url))
   }
 }
