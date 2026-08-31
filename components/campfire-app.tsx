@@ -169,13 +169,15 @@ export default function CampfireApp({
     id: 'cmthm6c9n0000pmj0qtcu3w5p',
     slug: initialCreator?.slug || 'mkurugenzi',
     displayName: initialCreator?.displayName || 'Mkurugenzi',
-    handle: `@${initialCreator?.slug || 'mkurugenzi'}`,
-    initials: 'MK',
-    primaryColor: '#d11149',
-    secondaryColor: '#0a0a0d',
-    welcomeMessage: 'Welcome to the campfire. Answer questions from our stories, climb the ranks, and unlock rewards.',
-    youtubeChannelId: 'UC_mkurugenzi_official',
-    channelUrl: 'https://youtube.com',
+    handle: `@Mkurugenziii`,
+    initials: initialCreator?.initials || 'MK',
+    primaryColor: initialCreator?.primaryColor || '#d11149',
+    secondaryColor: initialCreator?.secondaryColor || '#0a0a0d',
+    welcomeMessage:
+      initialCreator?.welcomeMessage ||
+      'Welcome to the campfire. Answer questions from our stories, climb the ranks, and unlock rewards.',
+    youtubeChannelId: 'UCUgsdMs1PqV9lKItnP0UxyQ',
+    channelUrl: 'https://www.youtube.com/@Mkurugenziii',
     stats: { totalFans: 0, totalQuizzes: 0 },
   })
 

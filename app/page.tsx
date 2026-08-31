@@ -260,7 +260,7 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <p className="font-serif text-sm font-bold">Mkurugenzi Official Campfire</p>
-                  <p className="text-[10px] font-mono text-muted-foreground">@mkurugenzi · Active Community Rotation</p>
+                  <p className="text-[10px] font-mono text-muted-foreground">@Mkurugenziii · Active Community Rotation</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
