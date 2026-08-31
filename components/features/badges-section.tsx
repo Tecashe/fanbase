@@ -1,14 +1,35 @@
 'use client'
 
-import { Award, CheckCircle2, Flame, Lock, Sparkles, Trophy, Zap } from 'lucide-react'
+import {
+  Award,
+  CheckCircle2,
+  Eye,
+  Flame,
+  Lock,
+  LucideIcon,
+  Sparkles,
+  Star,
+  Trophy,
+  Users,
+  Zap,
+} from 'lucide-react'
 
 export type BadgeItem = {
   id: string
   title: string
   description: string
-  icon: string
+  iconName: 'flame' | 'zap' | 'trophy' | 'users' | 'star' | 'eye'
   unlocked: boolean
   criteria: string
+}
+
+const badgeIconMap: Record<string, LucideIcon> = {
+  flame: Flame,
+  zap: Zap,
+  trophy: Trophy,
+  users: Users,
+  star: Star,
+  eye: Eye,
 }
 
 export const defaultBadges: BadgeItem[] = [
@@ -16,7 +37,7 @@ export const defaultBadges: BadgeItem[] = [
     id: 'b1',
     title: 'First Flame',
     description: 'Completed your first episode recall quest.',
-    icon: '🔥',
+    iconName: 'flame',
     unlocked: true,
     criteria: 'Complete 1 quest',
   },
@@ -24,7 +45,7 @@ export const defaultBadges: BadgeItem[] = [
     id: 'b2',
     title: '7-Day Spark',
     description: 'Maintained a 7-day active participation streak.',
-    icon: '⚡',
+    iconName: 'zap',
     unlocked: true,
     criteria: '7-day streak',
   },
@@ -32,7 +53,7 @@ export const defaultBadges: BadgeItem[] = [
     id: 'b3',
     title: 'Story Arc Master',
     description: 'Answered all questions in the Season 1 arc correctly.',
-    icon: '🏆',
+    iconName: 'trophy',
     unlocked: false,
     criteria: '100% score on Ep 40-42',
   },
@@ -40,7 +61,7 @@ export const defaultBadges: BadgeItem[] = [
     id: 'b4',
     title: 'Circle Ambassador',
     description: 'Invited 3 verified friends around the fire.',
-    icon: '✦',
+    iconName: 'users',
     unlocked: true,
     criteria: '3 verified referrals',
   },
@@ -48,7 +69,7 @@ export const defaultBadges: BadgeItem[] = [
     id: 'b5',
     title: 'Top 10 Contender',
     description: 'Finished in the weekly top 10 ranking.',
-    icon: '★',
+    iconName: 'star',
     unlocked: false,
     criteria: 'Reach Top 10 rank',
   },
@@ -56,7 +77,7 @@ export const defaultBadges: BadgeItem[] = [
     id: 'b6',
     title: 'Watch Party Veteran',
     description: 'Confirmed 10 video watch-to-unlock challenges.',
-    icon: '👁️',
+    iconName: 'eye',
     unlocked: false,
     criteria: '10 watch confirmations',
   },
@@ -85,34 +106,41 @@ export function BadgesSection({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {badges.map((b) => (
-          <div
-            key={b.id}
-            className={`p-4.5 rounded-2xl transition-all duration-200 flex items-start gap-3.5 ${
-              b.unlocked
-                ? 'neu-raised-sm border border-border bg-card'
-                : 'neu-inset-xs border border-border/50 bg-background/50 opacity-60'
-            }`}
-          >
+        {badges.map((b) => {
+          const IconComponent = badgeIconMap[b.iconName] || Trophy
+          return (
             <div
-              className={`grid size-11 shrink-0 place-items-center rounded-xl text-xl font-bold ${
+              key={b.id}
+              className={`p-4.5 rounded-2xl transition-all duration-200 flex items-start gap-3.5 ${
                 b.unlocked
-                  ? 'bg-accent/15 text-accent border border-accent/30 ruby-glow'
-                  : 'neu-inset-xs text-muted-foreground'
+                  ? 'neu-raised-sm border border-border bg-card'
+                  : 'neu-inset-xs border border-border/50 bg-background/50 opacity-60'
               }`}
             >
-              {b.unlocked ? b.icon : <Lock className="size-4 text-muted-foreground" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h4 className="font-serif text-sm font-bold text-foreground truncate">{b.title}</h4>
-                {b.unlocked && <CheckCircle2 className="size-3.5 text-accent shrink-0" />}
+              <div
+                className={`grid size-11 shrink-0 place-items-center rounded-xl font-bold ${
+                  b.unlocked
+                    ? 'bg-accent/15 text-accent border border-accent/30 ruby-glow'
+                    : 'neu-inset-xs text-muted-foreground'
+                }`}
+              >
+                {b.unlocked ? (
+                  <IconComponent className="size-5 text-accent" />
+                ) : (
+                  <Lock className="size-4 text-muted-foreground" />
+                )}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{b.description}</p>
-              <p className="text-[10px] font-mono text-accent/90 mt-2">{b.criteria}</p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h4 className="font-serif text-sm font-bold text-foreground truncate">{b.title}</h4>
+                  {b.unlocked && <CheckCircle2 className="size-3.5 text-accent shrink-0" />}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{b.description}</p>
+                <p className="text-[10px] font-mono text-accent/90 mt-2">{b.criteria}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

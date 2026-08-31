@@ -22,8 +22,10 @@ import {
   Lock,
   LogIn,
   LogOut,
+  LucideIcon,
   Menu,
   MessageCircle,
+  Mic,
   Moon,
   Play,
   Plus,
@@ -31,6 +33,7 @@ import {
   Send,
   Share2,
   Sparkles,
+  Star,
   Sun,
   Trophy,
   User,
@@ -45,7 +48,7 @@ import { ShareCardModal } from '@/components/features/share-card-modal'
 import { SponsorExportModal } from '@/components/features/sponsor-export-modal'
 import { BadgesSection } from '@/components/features/badges-section'
 import { AiQuestionGeneratorModal } from '@/components/admin/ai-question-generator-modal'
-import { PayoutManager, PayoutClaimItem } from '@/components/admin/payout-manager'
+import { PayoutManager } from '@/components/admin/payout-manager'
 import { CashPrizeClaimModal } from '@/components/features/cash-prize-claim-modal'
 
 type View = 'home' | 'quizzes' | 'leaderboard' | 'rewards' | 'referrals' | 'admin'
@@ -91,7 +94,7 @@ export type RewardData = {
   points: string
   pointsValue: number
   meta: string
-  icon: string
+  iconName: 'mic' | 'banknote' | 'flame' | 'gift' | 'trophy' | 'zap'
   cashValue?: number
   currency?: string
 }
@@ -117,6 +120,15 @@ export type FanState = {
   referrals: number
   claimedRewardIds: string[]
   unlockedBadgeIds: string[]
+}
+
+const rewardIconMap: Record<string, LucideIcon> = {
+  mic: Mic,
+  banknote: Banknote,
+  flame: Flame,
+  gift: Gift,
+  trophy: Trophy,
+  zap: Zap,
 }
 
 const navItems: { id: View; label: string; icon: typeof Flame }[] = [
@@ -176,7 +188,7 @@ export default function CampfireApp({
       points: '1,500 PTS',
       pointsValue: 1500,
       meta: 'Tier 1 Perk',
-      icon: '🎙️',
+      iconName: 'mic',
     },
     {
       id: 'rew-2',
@@ -185,7 +197,7 @@ export default function CampfireApp({
       points: '3,000 PTS',
       pointsValue: 3000,
       meta: 'Cash Payout',
-      icon: '💵',
+      iconName: 'banknote',
       cashValue: 5000,
       currency: 'KES',
     },
@@ -196,7 +208,7 @@ export default function CampfireApp({
       points: '5,000 PTS',
       pointsValue: 5000,
       meta: 'VIP Access',
-      icon: '🔥',
+      iconName: 'flame',
     },
   ])
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([])
@@ -225,11 +237,11 @@ export default function CampfireApp({
       const ref = params.get('ref')
       if (ref) {
         setReferrerId(ref)
-        showToast('🎁 Friend invite detected! +100 Bonus Points when you sign up.')
+        showToast('Friend invite detected! +100 Bonus Points when you sign up.')
       }
 
       if (params.get('youtube_verified') === 'true') {
-        showToast('🎉 YouTube subscription verified! +150 Points awarded.')
+        showToast('YouTube subscription verified! +150 Points awarded.')
       }
     }
   }, [isDark])
@@ -249,7 +261,18 @@ export default function CampfireApp({
         const data = await res.json()
         if (data.creator) setCreator(data.creator)
         if (Array.isArray(data.quizzes) && data.quizzes.length > 0) setQuizzes(data.quizzes)
-        if (Array.isArray(data.rewards) && data.rewards.length > 0) setRewards(data.rewards)
+        if (Array.isArray(data.rewards) && data.rewards.length > 0) {
+          setRewards(
+            data.rewards.map((r: any) => ({
+              ...r,
+              iconName: r.icon?.includes('mic')
+                ? 'mic'
+                : r.icon?.includes('banknote') || r.cashValue
+                ? 'banknote'
+                : 'flame',
+            })),
+          )
+        }
       }
     } catch (e) {
       console.error('Failed to load creator data:', e)
@@ -324,7 +347,7 @@ export default function CampfireApp({
 
     // Check watch-to-unlock gating
     if (quiz.requiresWatchConfirmation && !watchedStories.includes(quiz.id)) {
-      showToast('⚠️ Watch confirmation required: Please confirm you watched the episode first!')
+      showToast('Watch confirmation required: Please confirm you watched the episode first.')
       return
     }
 
@@ -346,7 +369,7 @@ export default function CampfireApp({
       })
     } catch {}
     setWatchedStories((prev) => [...prev, storyId])
-    showToast('✓ Video watch verified! Quest unlocked.')
+    showToast('Video watch verified. Quest unlocked.')
   }
 
   const handleAnswerSubmit = async () => {
@@ -403,7 +426,7 @@ export default function CampfireApp({
       } else if (data.verified) {
         checkAuth()
         setIsYoutubeGateOpen(false)
-        showToast('🎉 YouTube subscription verified! +150 bonus points awarded.')
+        showToast('YouTube subscription verified! +150 bonus points awarded.')
       } else {
         showToast(data.message || 'Subscription not found. Please click Subscribe on YouTube.')
       }
@@ -417,13 +440,11 @@ export default function CampfireApp({
   const handleRewardClick = (reward: RewardData) => {
     if (!requireAuthFirst()) return
 
-    // If it's a cash prize reward, open the Cash Prize Payout modal
     if (reward.cashValue) {
       setSelectedCashReward(reward)
       return
     }
 
-    // Otherwise standard perk claim
     handleClaimReward(reward)
   }
 
@@ -445,7 +466,7 @@ export default function CampfireApp({
 
       const data = await res.json()
       if (res.ok) {
-        showToast(data.message || `🎉 Perk "${reward.title}" unlocked!`)
+        showToast(data.message || `Perk "${reward.title}" unlocked!`)
         checkAuth()
       } else {
         showToast(data.error || 'Could not claim reward')
@@ -465,7 +486,7 @@ export default function CampfireApp({
         navigator.clipboard.writeText(inviteLink).catch(() => {})
       }
     } catch {}
-    showToast('Invite link copied to clipboard!')
+    showToast('Invite link copied to clipboard.')
   }
 
   const handleLogout = async () => {
@@ -543,7 +564,6 @@ export default function CampfireApp({
 
           {/* Right actions: Theme Toggle + YouTube Status + Auth + Studio */}
           <div className="flex items-center gap-3">
-            {/* Theme Toggle (Defaults to Light Alabaster) */}
             <button
               onClick={() => setIsDark(!isDark)}
               className="grid size-9.5 place-items-center rounded-xl neu-raised-sm border border-border bg-card text-foreground/80 hover:text-accent hover:scale-105 transition-all duration-200"
@@ -557,7 +577,6 @@ export default function CampfireApp({
               )}
             </button>
 
-            {/* YouTube Verification Status (Shown when logged in) */}
             {authUser && fanState && (
               <button
                 onClick={() => !fanState.youtubeVerified && setIsYoutubeGateOpen(true)}
@@ -576,7 +595,6 @@ export default function CampfireApp({
               </button>
             )}
 
-            {/* Creator Studio Link */}
             <button
               onClick={() => navigateTo('admin')}
               className={`hidden lg:inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200 ${
@@ -589,7 +607,6 @@ export default function CampfireApp({
               <span>Studio</span>
             </button>
 
-            {/* Real User Profile OR Sign In / Register */}
             {authUser && fanState ? (
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2.5 rounded-full pl-1.5 pr-3 py-1 neu-raised-xs border border-border bg-card">
@@ -623,7 +640,6 @@ export default function CampfireApp({
               </button>
             )}
 
-            {/* Mobile menu toggle */}
             <button
               className="grid size-9.5 place-items-center rounded-xl neu-raised-sm border border-border bg-card md:hidden"
               onClick={() => setMobileMenu(!mobileMenu)}
@@ -634,7 +650,6 @@ export default function CampfireApp({
           </div>
         </div>
 
-        {/* Mobile Navigation Dropdown */}
         {mobileMenu && (
           <div className="border-t border-border/80 bg-background/95 p-4 backdrop-blur-2xl md:hidden animate-in slide-in-from-top-2 duration-200">
             <div className="flex flex-col gap-2">
@@ -778,7 +793,7 @@ export default function CampfireApp({
         creatorSlug={creator.slug}
         onSuccess={(newTitle) => {
           loadCreatorData()
-          showToast(`🎉 AI Quest "${newTitle}" created and published to live Neon database!`)
+          showToast(`AI Quest "${newTitle}" published to live Neon database!`)
         }}
       />
 
@@ -1496,6 +1511,7 @@ function RewardsView({
           const isClaimed = fan?.claimedRewardIds?.includes(reward.id)
           const canClaim = fan ? fan.points >= reward.pointsValue : false
           const isCash = !!reward.cashValue
+          const IconComp = rewardIconMap[reward.iconName] || Gift
 
           return (
             <div
@@ -1506,8 +1522,8 @@ function RewardsView({
             >
               <div>
                 <div className="flex items-start justify-between mb-6">
-                  <div className="grid size-12 place-items-center rounded-2xl neu-convex text-accent text-xl font-serif font-bold">
-                    {reward.icon}
+                  <div className="grid size-12 place-items-center rounded-2xl neu-convex text-accent">
+                    <IconComp className="size-6 text-accent" />
                   </div>
                   <span
                     className={`rounded-full px-3 py-1 neu-pill-inset text-[10px] font-mono uppercase ${
@@ -1522,8 +1538,9 @@ function RewardsView({
                   {reward.description}
                 </p>
                 {isCash && (
-                  <div className="mt-3 p-2.5 rounded-xl neu-inset-xs border border-accent/20 text-xs font-mono text-accent font-bold">
-                    💰 Payout: {reward.currency} {reward.cashValue?.toLocaleString()} via M-Pesa / PayPal
+                  <div className="mt-3 p-2.5 rounded-xl neu-inset-xs border border-accent/20 text-xs font-mono text-accent font-bold flex items-center gap-1.5">
+                    <Banknote className="size-3.5" />
+                    <span>Payout: {reward.currency} {reward.cashValue?.toLocaleString()} via M-Pesa / PayPal</span>
                   </div>
                 )}
               </div>
@@ -1545,7 +1562,7 @@ function RewardsView({
                   }`}
                 >
                   {isClaimed
-                    ? 'Unlocked ✓'
+                    ? 'Unlocked'
                     : fan
                     ? isCash
                       ? 'Claim Cash Prize'
@@ -1910,7 +1927,7 @@ function AdminView({
       )}
 
       {activeTab === 'payouts' && (
-        <PayoutManager onDisburseSuccess={() => showToast('Winner payout disbursed successfully!')} />
+        <PayoutManager onDisburseSuccess={() => showToast('Winner payout disbursed successfully.')} />
       )}
 
       {activeTab === 'crm' && (
@@ -1964,7 +1981,7 @@ function AdminView({
                             fanRow.verified ? 'bg-accent/15 text-accent' : 'bg-muted text-muted-foreground'
                           }`}
                         >
-                          {fanRow.verified ? '✓ Verified' : 'Unverified'}
+                          {fanRow.verified ? 'Verified' : 'Unverified'}
                         </span>
                       </td>
                       <td className="py-3.5 font-mono text-muted-foreground">{fanRow.lastActive}</td>
@@ -2086,7 +2103,7 @@ function QuestCard({
               onClick={onConfirmWatch}
               className="text-[10px] font-mono font-bold text-accent hover:underline shrink-0"
             >
-              I Watched It ✓
+              Watched
             </button>
           </div>
         )}

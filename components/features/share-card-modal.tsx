@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Copy, Flame, MessageCircle, Share2, Trophy, X } from 'lucide-react'
+import { Check, Copy, Flame, MessageCircle, Share2, X } from 'lucide-react'
 
 export function ShareCardModal({
   isOpen,
@@ -29,7 +29,7 @@ export function ShareCardModal({
   if (!isOpen) return null
 
   const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creatorSlug}`
-  const shareText = `🔥 I just scored ${score} pts on "${quizTitle}" at ${creatorName}'s Campfire! My streak is ${streak} days. Think you can beat me? Join the fan club: ${shareUrl}`
+  const shareText = `I just scored ${score} pts on "${quizTitle}" at ${creatorName}'s Campfire! My streak is ${streak} days. Think you can beat me? Join the fan club: ${shareUrl}`
 
   const logShare = async (platform: string) => {
     try {
@@ -127,7 +127,7 @@ export function ShareCardModal({
 
           <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-[10px] font-mono text-accent">
             <span>campfire.app/{creatorSlug}</span>
-            <span>★ TOP FAN</span>
+            <span>TOP FAN</span>
           </div>
         </div>
 
@@ -142,9 +142,8 @@ export function ShareCardModal({
           </button>
           <button
             onClick={handleTwitterShare}
-            className="neu-button rounded-xl py-3 px-4 text-xs font-bold inline-flex items-center justify-center gap-2 text-foreground"
+            className="neu-button rounded-xl py-3 px-4 text-xs font-bold inline-flex items-center justify-center gap-2 text-foreground font-mono font-bold"
           >
-            <span className="font-mono font-black text-sm">𝕏</span>
             <span>Post on X</span>
           </button>
           <button

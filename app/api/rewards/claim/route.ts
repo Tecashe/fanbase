@@ -91,7 +91,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `🎉 Reward "${reward.title}" unlocked successfully!`,
+      message: `Reward "${reward.title}" unlocked successfully!`,
       newBalance: link.pointsBalance - pointsRequired,
     })
   } catch (err: unknown) {

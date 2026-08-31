@@ -290,7 +290,7 @@ export function AiQuestionGeneratorModal({
                 onClick={() => setStep('input')}
                 className="text-xs font-mono text-muted-foreground hover:text-foreground underline"
               >
-                ← Back to Script
+                Back to Script
               </button>
             </div>
 
@@ -327,7 +327,11 @@ export function AiQuestionGeneratorModal({
                           }`}
                           title={opt.isCorrect ? 'Correct Option' : 'Mark as Correct'}
                         >
-                          {opt.isCorrect ? '✓' : String.fromCharCode(65 + optIdx)}
+                          {opt.isCorrect ? (
+                            <Check className="size-3.5" />
+                          ) : (
+                            String.fromCharCode(65 + optIdx)
+                          )}
                         </button>
                         <input
                           type="text"

@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       claim,
-      message: `🎉 Cash prize claim submitted! Payout of ${reward.currency} ${reward.cashValue || ''} will be disbursed to ${payoutAccount}.`,
+      message: `Cash prize claim submitted! Payout of ${reward.currency} ${reward.cashValue || ''} will be disbursed to ${payoutAccount}.`,
     })
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'Payout claim failed'

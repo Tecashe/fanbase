@@ -99,7 +99,6 @@ export function PayoutManager({
       setReferenceCode('')
       onDisburseSuccess()
     } catch {
-      // update local
       setLocalClaims((prev) =>
         prev.map((c) =>
           c.id === selectedClaim.id
@@ -214,7 +213,7 @@ export function PayoutManager({
                           : 'bg-destructive/15 text-destructive border border-destructive/30'
                       }`}
                     >
-                      {claim.status === 'fulfilled' ? '✓ Paid' : 'Pending'}
+                      {claim.status === 'fulfilled' ? 'Paid' : 'Pending'}
                     </span>
                     {claim.payoutReference && (
                       <span className="block text-[9px] font-mono text-muted-foreground mt-0.5">
