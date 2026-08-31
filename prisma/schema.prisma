@@ -1,0 +1,383 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CreatorStatus {
+  active
+  pending
+  suspended
+}
+
+enum RewardProgramType {
+  weekly
+  monthly
+  annual
+  custom
+}
+
+enum QuizType {
+  story_recall
+  prediction
+  speed_bonus
+}
+
+enum RewardStatus {
+  active
+  upcoming
+  ended
+}
+
+enum FulfillmentStatus {
+  pending
+  fulfilled
+  expired
+}
+
+enum UserRole {
+  user
+  creator
+  admin
+}
+
+enum SharePlatform {
+  whatsapp
+  instagram
+  x
+  other
+}
+
+enum BadgeCriteriaType {
+  story_arc_complete
+  streak
+  milestone
+  custom
+}
+
+model Creator {
+  id                  String            @id @default(cuid())
+  slug                String            @unique
+  displayName         String
+  youtubeChannelId    String?
+  logoUrl             String?
+  brandPrimaryColor   String            @default("#d11149")
+  brandSecondaryColor String            @default("#0a0a0d")
+  welcomeMessage      String?
+  rewardProgramType   RewardProgramType @default(weekly)
+  status              CreatorStatus     @default(active)
+  planTier            String            @default("free")
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  stories             Story[]
+  quizzes             Quiz[]
+  links               UserCreatorLink[]
+  rewards             Reward[]
+  snapshots           LeaderboardSnapshot[]
+  referrals           Referral[]
+  notifications       NotificationLog[]
+  storyViews          StoryView[]
+  shareEvents         ShareEvent[]
+  badges              Badge[]
+  attempts            QuizAttempt[]
+}
+
+model User {
+  id            String            @id @default(cuid())
+  email         String            @unique
+  passwordHash  String?
+  displayName   String?
+  avatarUrl     String?
+  role          UserRole          @default(user)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  sessions      Session[]
+  links         UserCreatorLink[]
+  attempts      QuizAttempt[]
+  claims        RewardClaim[]
+  storyViews    StoryView[]
+  shareEvents   ShareEvent[]
+  badges        UserBadge[]
+  referralsMade Referral[]        @relation("Referrer")
+  referralsRcvd Referral[]        @relation("Referred")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserCreatorLink {
+  id                           String    @id @default(cuid())
+  userId                       String
+  creatorId                    String
+  youtubeSubscriptionVerified  Boolean   @default(false)
+  youtubeVerifiedAt            DateTime?
+  subscriptionCheckExpiresAt   DateTime?
+  pointsBalance                Int       @default(0)
+  currentStreak                Int       @default(0)
+  longestStreak                Int       @default(0)
+  lastActiveAt                 DateTime? @default(now())
+  joinedAt                     DateTime  @default(now())
+
+  user                         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creator                      Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, creatorId])
+  @@index([creatorId])
+  @@index([userId])
+}
+
+model Story {
+  id                 String      @id @default(cuid())
+  creatorId          String
+  title              String
+  youtubeVideoId     String?
+  description        String?
+  airedDate          DateTime?
+  transcriptOrNotes  String?
+  createdAt          DateTime    @default(now())
+
+  creator            Creator     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  quizzes            Quiz[]
+  storyViews         StoryView[]
+
+  @@index([creatorId])
+}
+
+model Quiz {
+  id                         String         @id @default(cuid())
+  creatorId                  String
+  storyId                    String?
+  title                      String
+  quizType                   QuizType       @default(story_recall)
+  pointsValue                Int            @default(250)
+  availableFrom              DateTime       @default(now())
+  availableUntil             DateTime?
+  isActive                   Boolean        @default(true)
+  requiresWatchConfirmation  Boolean        @default(false)
+  createdAt                  DateTime       @default(now())
+
+  creator                    Creator        @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  story                      Story?         @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  questions                  QuizQuestion[]
+  attempts                   QuizAttempt[]
+
+  @@index([creatorId])
+  @@index([storyId])
+}
+
+model QuizQuestion {
+  id            String             @id @default(cuid())
+  quizId        String
+  questionText  String
+  questionOrder Int
+  pointsValue   Int                @default(50)
+
+  quiz          Quiz               @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options       QuizAnswerOption[]
+  attemptAnswers QuizAttemptAnswer[]
+
+  @@index([quizId])
+}
+
+model QuizAnswerOption {
+  id             String              @id @default(cuid())
+  questionId     String
+  optionText     String
+  isCorrect      Boolean             @default(false)
+
+  question       QuizQuestion        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attemptAnswers QuizAttemptAnswer[]
+
+  @@index([questionId])
+}
+
+model QuizAttempt {
+  id               String              @id @default(cuid())
+  quizId           String
+  userId           String
+  creatorId        String
+  startedAt        DateTime            @default(now())
+  completedAt      DateTime?
+  score            Int                 @default(0)
+  timeTakenSeconds Int?
+  pointsEarned     Int                 @default(0)
+  deviceType       String?
+  referrerSource   String?
+
+  quiz             Quiz                @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creator          Creator             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  answers          QuizAttemptAnswer[]
+  shareEvents      ShareEvent[]
+
+  @@unique([quizId, userId])
+  @@index([creatorId])
+  @@index([userId])
+}
+
+model QuizAttemptAnswer {
+  id               String           @id @default(cuid())
+  attemptId        String
+  questionId       String
+  selectedOptionId String?
+  isCorrect        Boolean          @default(false)
+
+  attempt          QuizAttempt      @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question         QuizQuestion     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOption   QuizAnswerOption? @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+
+  @@index([attemptId])
+}
+
+model Reward {
+  id                String            @id @default(cuid())
+  creatorId         String
+  title             String
+  description       String?
+  rewardType        RewardProgramType @default(weekly)
+  pointsRequired    Int?
+  rankRequired      Int?
+  quantityAvailable Int?
+  periodStart       DateTime          @default(now())
+  periodEnd         DateTime
+  status            RewardStatus      @default(active)
+
+  creator           Creator           @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  claims            RewardClaim[]
+
+  @@index([creatorId])
+}
+
+model RewardClaim {
+  id                String            @id @default(cuid())
+  rewardId          String
+  userId            String
+  claimedAt         DateTime          @default(now())
+  fulfillmentStatus FulfillmentStatus @default(pending)
+
+  reward            Reward            @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([rewardId])
+  @@index([userId])
+}
+
+model LeaderboardSnapshot {
+  id          String            @id @default(cuid())
+  creatorId   String
+  periodType  RewardProgramType @default(weekly)
+  periodStart DateTime
+  periodEnd   DateTime
+  userId      String
+  rank        Int
+  points      Int
+  generatedAt DateTime          @default(now())
+
+  creator     Creator           @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId, periodType, periodStart])
+}
+
+model Referral {
+  id             String   @id @default(cuid())
+  creatorId      String
+  referrerUserId String
+  referredUserId String
+  pointsAwarded  Int      @default(100)
+  createdAt      DateTime @default(now())
+
+  creator        Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  referrer       User     @relation("Referrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referred       User     @relation("Referred", fields: [referredUserId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@index([referrerUserId])
+  @@index([referredUserId])
+}
+
+model NotificationLog {
+  id        String    @id @default(cuid())
+  creatorId String
+  userId    String
+  type      String
+  sentAt    DateTime  @default(now())
+  openedAt  DateTime?
+
+  creator   Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+}
+
+model StoryView {
+  id                  String   @id @default(cuid())
+  creatorId           String
+  storyId             String
+  userId              String
+  watchedConfirmation Boolean  @default(true)
+  confirmedAt         DateTime @default(now())
+
+  creator             Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  story               Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, userId])
+  @@index([creatorId])
+}
+
+model ShareEvent {
+  id            String        @id @default(cuid())
+  creatorId     String
+  userId        String
+  quizAttemptId String?
+  sharePlatform SharePlatform @default(whatsapp)
+  sharedAt      DateTime      @default(now())
+
+  creator       Creator       @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempt       QuizAttempt?  @relation(fields: [quizAttemptId], references: [id], onDelete: SetNull)
+
+  @@index([creatorId])
+  @@index([userId])
+}
+
+model Badge {
+  id             String            @id @default(cuid())
+  creatorId      String
+  title          String
+  description    String
+  iconUrl        String?
+  criteriaType   BadgeCriteriaType @default(milestone)
+  criteriaConfig Json?
+
+  creator        Creator           @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  userBadges     UserBadge[]
+
+  @@index([creatorId])
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeId   String
+  awardedAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
