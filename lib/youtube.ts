@@ -51,8 +51,8 @@ export async function getGoogleUserProfile(accessToken: string): Promise<{
 }
 
 /**
- * Verifies if user is subscribed to creator's YouTube channel via YouTube Data API v3.
- * Primary Channel: https://www.youtube.com/@Mkurugenziii (Channel ID: UCUgsdMs1PqV9lKItnP0UxyQ)
+ * Strictly verifies if user is subscribed to creator's YouTube channel via YouTube Data API v3.
+ * Target Channel: https://www.youtube.com/@Mkurugenziii (Channel ID: UCUgsdMs1PqV9lKItnP0UxyQ)
  */
 export async function verifyYouTubeSubscription({
   accessToken,
@@ -66,17 +66,18 @@ export async function verifyYouTubeSubscription({
   quotaExceeded?: boolean
   error?: string
 }> {
-  if (!process.env.GOOGLE_CLIENT_ID || accessToken.startsWith('mock-')) {
+  const targetChannelId = creatorChannelId || 'UCUgsdMs1PqV9lKItnP0UxyQ'
+
+  if (!accessToken || accessToken.startsWith('mock-')) {
+    console.warn('[YouTube API Strict] No valid access token, verification is FALSE.')
     return {
-      verified: true,
-      channelTitle: 'Mkurugenzi (@Mkurugenziii)',
+      verified: false,
+      error: 'Google OAuth token missing. Please sign in with Google/YouTube to verify.',
     }
   }
 
-  const targetChannelId = creatorChannelId || 'UCUgsdMs1PqV9lKItnP0UxyQ'
-
   try {
-    console.log(`[YouTube API] Querying subscription for channelId: ${targetChannelId}...`)
+    console.log(`[YouTube API Strict] Querying subscriptions for channel: ${targetChannelId}...`)
 
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&forChannelId=${targetChannelId}`,
@@ -90,35 +91,41 @@ export async function verifyYouTubeSubscription({
 
     if (res.status === 403) {
       const errorData = await res.json().catch(() => ({}))
+      console.warn('[YouTube API 403]', errorData)
       if (errorData?.error?.errors?.[0]?.reason === 'quotaExceeded') {
-        console.warn('[YouTube API] Quota exceeded, granting access gracefully.')
         return {
-          verified: true,
+          verified: false,
           quotaExceeded: true,
-          channelTitle: 'Mkurugenzi (@Mkurugenziii)',
+          error: 'YouTube API daily quota reached.',
         }
+      }
+      return {
+        verified: false,
+        error: errorData?.error?.message || 'Access to subscriptions forbidden.',
       }
     }
 
     if (!res.ok) {
-      console.warn(`[YouTube API] Check returned status: ${res.status}`)
+      const errText = await res.text()
+      console.warn(`[YouTube API Check Failed ${res.status}]:`, errText)
       return {
-        verified: true, // Fallback to verified so fans with private subscriptions can participate
-        channelTitle: 'Mkurugenzi (@Mkurugenziii)',
+        verified: false,
+        error: `YouTube API returned status ${res.status}`,
       }
     }
 
     const data = await res.json()
     const isSubscribed = Array.isArray(data.items) && data.items.length > 0
+    console.log(`[YouTube API Strict] Subscribed to ${targetChannelId}?`, isSubscribed)
 
     return {
-      verified: isSubscribed || true,
-      channelTitle: data.items?.[0]?.snippet?.title || 'Mkurugenzi (@Mkurugenziii)',
+      verified: isSubscribed,
+      channelTitle: isSubscribed ? data.items[0]?.snippet?.title || 'Mkurugenzi (@Mkurugenziii)' : undefined,
     }
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'Network error during verification'
-    console.error('[YouTube API Error]', errorMsg)
-    return { verified: true, channelTitle: 'Mkurugenzi (@Mkurugenziii)' }
+    console.error('[YouTube API Strict Error]:', errorMsg)
+    return { verified: false, error: errorMsg }
   }
 }
 
@@ -134,7 +141,7 @@ export function checkVerificationRateLimit(userId: string): {
   const lastCheck = lastVerificationMap.get(userId) || 0
   const now = Date.now()
   const elapsed = (now - lastCheck) / 1000
-  const waitTime = 300 // 5 minutes
+  const waitTime = 60 // 1 minute
 
   if (elapsed < waitTime) {
     return {

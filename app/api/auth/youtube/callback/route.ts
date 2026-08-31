@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     }
 
     let authUser = await getAuthUser()
-    let accessToken = 'mock-access-token'
+    let accessToken: string | null = null
     let googleProfile: { email: string; name: string; picture?: string } | null = null
 
     // 1. Exchange OAuth code with Google for Access Token
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
         console.log('[Campfire YouTube Auth Callback] Google access token received successfully.')
 
         // Fetch Google User Profile
-        googleProfile = await getGoogleUserProfile(accessToken)
+        googleProfile = await getGoogleUserProfile(accessToken!)
         console.log('[Campfire YouTube Auth Callback] Google user profile fetched:', {
           email: googleProfile?.email,
           name: googleProfile?.name,
@@ -69,9 +69,9 @@ export async function GET(request: Request) {
         const errText = await tokenRes.text()
         console.error('[Campfire YouTube Auth Callback] Google token exchange failed:', errText)
       }
-    } else {
-      console.log('[Campfire YouTube Auth Callback] Running in test/mock mode (no Google OAuth credentials provided).')
     }
+
+    let isSubscribed = false
 
     // 2. Register or Login user via Google profile in Neon Postgres
     if (process.env.DATABASE_URL) {
@@ -119,29 +119,30 @@ export async function GET(request: Request) {
         console.log('[Campfire YouTube Auth Callback] Session established and cookie written.')
       }
 
-      // 3. Verify & Auto-Subscribe to Creator's Channel
+      // 3. Strictly Verify Subscription against @Mkurugenziii (UCUgsdMs1PqV9lKItnP0UxyQ)
       if (authUser) {
         const creator = await prisma.creator.findUnique({
           where: { slug: creatorSlug },
         })
 
         if (creator) {
-          // Check API or automatically ensure subscribed upon authenticating
-          const verification = await verifyYouTubeSubscription({
-            accessToken,
-            creatorChannelId: creator.youtubeChannelId || 'UC_mkurugenzi_official',
-          })
+          const targetChannelId = creator.youtubeChannelId || 'UCUgsdMs1PqV9lKItnP0UxyQ'
 
-          // Ensure subscription is granted and verified
-          const isSubscribed = true // Authenticated through YouTube -> mark subscribed & verified
+          if (accessToken) {
+            console.log(`[Campfire YouTube Auth Callback] Querying YouTube Data API for channel: ${targetChannelId}...`)
+            const verification = await verifyYouTubeSubscription({
+              accessToken,
+              creatorChannelId: targetChannelId,
+            })
+            isSubscribed = verification.verified
+            console.log(`[Campfire YouTube Auth Callback] Verification result for user ${authUser.id}: isSubscribed = ${isSubscribed}`)
+          } else {
+            console.warn('[Campfire YouTube Auth Callback] No access token available, user is marked unverified.')
+            isSubscribed = false
+          }
+
           const expiresAt = new Date()
-          expiresAt.setDate(expiresAt.getDate() + 30) // 30-day verification validity
-
-          console.log('[Campfire YouTube Auth Callback] Linking user to creator with verified subscription:', {
-            userId: authUser.id,
-            creatorId: creator.id,
-            verified: isSubscribed,
-          })
+          expiresAt.setDate(expiresAt.getDate() + 30)
 
           await prisma.userCreatorLink.upsert({
             where: {
@@ -151,19 +152,19 @@ export async function GET(request: Request) {
               },
             },
             update: {
-              youtubeSubscriptionVerified: true,
-              youtubeVerifiedAt: new Date(),
-              subscriptionCheckExpiresAt: expiresAt,
-              pointsBalance: { increment: 150 },
+              youtubeSubscriptionVerified: isSubscribed,
+              youtubeVerifiedAt: isSubscribed ? new Date() : null,
+              subscriptionCheckExpiresAt: isSubscribed ? expiresAt : null,
+              pointsBalance: isSubscribed ? { increment: 150 } : undefined,
               lastActiveAt: new Date(),
             },
             create: {
               userId: authUser.id,
               creatorId: creator.id,
-              youtubeSubscriptionVerified: true,
-              youtubeVerifiedAt: new Date(),
-              subscriptionCheckExpiresAt: expiresAt,
-              pointsBalance: 250, // 100 welcome + 150 verified bonus
+              youtubeSubscriptionVerified: isSubscribed,
+              youtubeVerifiedAt: isSubscribed ? new Date() : null,
+              subscriptionCheckExpiresAt: isSubscribed ? expiresAt : null,
+              pointsBalance: isSubscribed ? 250 : 100,
               currentStreak: 1,
               longestStreak: 1,
             },
@@ -172,10 +173,11 @@ export async function GET(request: Request) {
       }
     }
 
-    console.log(`[Campfire YouTube Auth Callback] Auth successful in ${Date.now() - startTime}ms. Redirecting to /app...`)
+    const redirectStatus = isSubscribed ? 'subscribed' : 'unsubscribed'
+    console.log(`[Campfire YouTube Auth Callback] Flow complete. Redirecting to /app?youtube_status=${redirectStatus}`)
     console.log('----------------------------------------------------')
 
-    return NextResponse.redirect(`${appOrigin}/app?youtube_status=subscribed`)
+    return NextResponse.redirect(`${appOrigin}/app?youtube_status=${redirectStatus}`)
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'YouTube auth failed'
     console.error('[Campfire YouTube Auth Callback Error]:', errorMsg)

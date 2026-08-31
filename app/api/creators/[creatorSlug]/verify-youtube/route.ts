@@ -13,11 +13,9 @@ export async function POST(
     const authUser = await getAuthUser()
 
     if (!authUser) {
-      console.warn('[Campfire Manual YouTube Verification] Failed: Unauthorized')
+      console.warn('[Campfire Manual YouTube Verification] Unauthorized')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    console.log('[Campfire Manual YouTube Verification] Verifying user:', authUser.id, 'for creator:', creatorSlug)
 
     if (process.env.DATABASE_URL) {
       const creator = await prisma.creator.findUnique({
@@ -25,46 +23,35 @@ export async function POST(
       })
 
       if (creator) {
-        const expiresAt = new Date()
-        expiresAt.setDate(expiresAt.getDate() + 30)
-
-        await prisma.userCreatorLink.upsert({
+        // Check existing link status in Neon DB
+        const link = await prisma.userCreatorLink.findUnique({
           where: {
             userId_creatorId: {
               userId: authUser.id,
               creatorId: creator.id,
             },
           },
-          update: {
-            youtubeSubscriptionVerified: true,
-            youtubeVerifiedAt: new Date(),
-            subscriptionCheckExpiresAt: expiresAt,
-            pointsBalance: { increment: 150 },
-            lastActiveAt: new Date(),
-          },
-          create: {
-            userId: authUser.id,
-            creatorId: creator.id,
-            youtubeSubscriptionVerified: true,
-            youtubeVerifiedAt: new Date(),
-            subscriptionCheckExpiresAt: expiresAt,
-            pointsBalance: 250,
-            currentStreak: 1,
-            longestStreak: 1,
-          },
         })
 
-        console.log('[Campfire Manual YouTube Verification] User verified and updated in Neon Postgres.')
+        const isVerified = link?.youtubeSubscriptionVerified ?? false
+
+        return NextResponse.json({
+          success: true,
+          verified: isVerified,
+          message: isVerified
+            ? 'YouTube subscription is verified!'
+            : 'Subscription not detected yet. Please click "Verify with Google OAuth (Live)" to verify your subscription.',
+        })
       }
     }
 
     return NextResponse.json({
       success: true,
-      verified: true,
-      message: 'YouTube subscription verified! +150 bonus points awarded.',
+      verified: false,
+      message: 'Please connect via Google OAuth to verify your subscription.',
     })
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : 'Verification failed'
+    const errorMsg = err instanceof Error ? err.message : 'Verification check failed'
     console.error('[Campfire Manual YouTube Verification Error]:', errorMsg)
     return NextResponse.json({ error: errorMsg }, { status: 500 })
   }
