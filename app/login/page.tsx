@@ -1,0 +1,279 @@
+'use client'
+
+import { useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import { ArrowRight, Flame, KeyRound, Lock, Mail, RefreshCw, Sparkles, User, X } from 'lucide-react'
+
+function LoginForm() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectPath = searchParams.get('redirect') || '/app'
+  const creatorSlug = searchParams.get('creator') || 'mkurugenzi'
+
+  const [authMethod, setAuthMethod] = useState<'password' | 'code'>('password')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [verificationCode, setVerificationCode] = useState('')
+  const [codeSent, setCodeSent] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 3500)
+  }
+
+  const handleSendCode = async () => {
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid email address first.')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/auth/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to send code')
+
+      setCodeSent(true)
+      showToast(data.message || 'Verification code sent to your email!')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to send code')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+
+    try {
+      if (authMethod === 'code') {
+        const res = await fetch('/api/auth/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, code: verificationCode, creatorSlug }),
+        })
+
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Invalid verification code')
+
+        showToast('Verification successful. Redirecting to dashboard...')
+        setTimeout(() => {
+          router.push(redirectPath)
+          router.refresh()
+        }, 500)
+      } else {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, creatorSlug }),
+        })
+
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Invalid email or password')
+
+        showToast('Login successful. Redirecting to dashboard...')
+        setTimeout(() => {
+          router.push(redirectPath)
+          router.refresh()
+        }, 500)
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="w-full max-w-md neu-card p-6 sm:p-8 border border-border/90 bg-card shadow-2xl relative overflow-hidden">
+      {toastMessage && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center gap-2.5 rounded-full px-5 py-2.5 neu-raised-lg border border-accent/30 bg-card text-foreground font-medium text-sm shadow-xl">
+            <span className="ruby-dot animate-pulse" />
+            <span>{toastMessage}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="text-center mb-6">
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight">Sign In</h1>
+        <p className="text-xs font-mono text-muted-foreground mt-1">
+          Access your verified quests, live points, and creator perks
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl neu-inset-xs border border-border/60 bg-background/60 mb-6">
+        <button
+          type="button"
+          onClick={() => {
+            setAuthMethod('password')
+            setError(null)
+          }}
+          className={`py-2 text-xs font-bold font-mono rounded-xl transition-all ${
+            authMethod === 'password'
+              ? 'neu-raised-sm bg-card text-foreground border border-border'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Password Login
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setAuthMethod('code')
+            setError(null)
+          }}
+          className={`py-2 text-xs font-bold font-mono rounded-xl transition-all ${
+            authMethod === 'code'
+              ? 'neu-raised-sm bg-card text-foreground border border-border'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          6-Digit Code Login
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-5 rounded-xl p-3.5 text-xs font-medium border border-destructive/30 bg-destructive/10 text-destructive animate-in fade-in duration-200">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1.5">
+            Email Address
+          </label>
+          <div className="relative">
+            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <input
+              type="email"
+              required
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium"
+            />
+          </div>
+        </div>
+
+        {authMethod === 'password' ? (
+          <div>
+            <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1.5">
+              Password
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <input
+                type="password"
+                required
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium"
+              />
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] font-mono uppercase text-muted-foreground">
+                6-Digit Verification Code
+              </label>
+              <button
+                type="button"
+                onClick={handleSendCode}
+                disabled={loading}
+                className="text-[10px] font-mono text-accent font-bold hover:underline"
+              >
+                {codeSent ? 'Resend Code' : 'Send Code to Email'}
+              </button>
+            </div>
+            <div className="relative">
+              <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <input
+                type="text"
+                maxLength={6}
+                required
+                placeholder="123456"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-mono font-bold tracking-widest text-center"
+              />
+            </div>
+            {!codeSent && (
+              <p className="text-[10px] font-mono text-muted-foreground mt-1.5">
+                Click "Send Code to Email" above to receive your one-time verification token.
+              </p>
+            )}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="mt-6 w-full neu-button-primary rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : 'hidden'}`} />
+          <span>{loading ? 'Authenticating...' : 'Sign In to Dashboard'}</span>
+          {!loading && <ArrowRight className="size-3.5" />}
+        </button>
+      </form>
+
+      <div className="mt-6 pt-4 border-t border-border/60 text-center">
+        <p className="text-xs text-muted-foreground">
+          Don't have an account yet?{' '}
+          <Link
+            href={`/register?creator=${creatorSlug}&redirect=${encodeURIComponent(redirectPath)}`}
+            className="text-accent font-bold hover:underline"
+          >
+            Create an Account
+          </Link>
+        </p>
+      </div>
+    </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col justify-center items-center p-4 sm:p-6 selection:bg-accent/25 relative overflow-hidden font-sans">
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 size-96 rounded-full bg-accent/5 blur-3xl pointer-events-none" />
+
+      <div className="mb-8 text-center">
+        <Link href="/" className="inline-flex items-center gap-3 group outline-none">
+          <div className="relative grid size-12 place-items-center rounded-2xl bg-card neu-raised border border-border group-hover:scale-105 transition-transform duration-200">
+            <Flame className="size-6 text-accent drop-shadow-[0_0_8px_rgba(209,17,73,0.5)]" />
+            <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-accent ruby-glow" />
+          </div>
+          <span className="font-serif text-2xl font-bold tracking-tight block leading-none">
+            Campfire
+          </span>
+        </Link>
+      </div>
+
+      <Suspense
+        fallback={
+          <div className="w-full max-w-md neu-card p-8 border border-border text-center text-xs font-mono text-muted-foreground">
+            Loading...
+          </div>
+        }
+      >
+        <LoginForm />
+      </Suspense>
+    </div>
+  )
+}

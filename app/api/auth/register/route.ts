@@ -14,6 +14,15 @@ export async function POST(request: Request) {
       )
     }
 
+    const normalizedEmail = email.toLowerCase().trim()
+
+    if (!normalizedEmail.includes('@') || normalizedEmail.length < 5) {
+      return NextResponse.json(
+        { error: 'Please enter a valid email address' },
+        { status: 400 },
+      )
+    }
+
     if (password.length < 6) {
       return NextResponse.json(
         { error: 'Password must be at least 6 characters' },
@@ -22,31 +31,34 @@ export async function POST(request: Request) {
     }
 
     let user = null
-    let token = 'mock-session-token'
+    let token = 'session-token'
 
     if (process.env.DATABASE_URL) {
+      // 1. Strict duplicate credentials check
       const existing = await prisma.user.findUnique({
-        where: { email: email.toLowerCase().trim() },
+        where: { email: normalizedEmail },
       })
 
       if (existing) {
         return NextResponse.json(
-          { error: 'An account with this email already exists' },
+          { error: 'An account with this email address already exists. Please sign in instead.' },
           { status: 409 },
         )
       }
 
+      // 2. Hash password and insert into Neon PostgreSQL
       const passwordHash = hashPassword(password)
       user = await prisma.user.create({
         data: {
-          email: email.toLowerCase().trim(),
+          email: normalizedEmail,
           passwordHash,
-          displayName: displayName || email.split('@')[0],
+          displayName: displayName?.trim() || normalizedEmail.split('@')[0],
           role: 'user',
+          emailVerified: true,
         },
       })
 
-      // Link to creator if provided
+      // 3. Link to creator workspace
       const slug = creatorSlug || 'mkurugenzi'
       const creator = await prisma.creator.findUnique({
         where: { slug },
@@ -55,20 +67,20 @@ export async function POST(request: Request) {
       if (creator) {
         let initialPoints = 100 // Standard welcome bonus
 
-        // Check referral attribution
+        // 4. Handle Referral Attribution
         let validReferrer = null
         if (referrerId) {
           validReferrer = await prisma.user.findFirst({
             where: {
-              OR: [{ id: referrerId }, { email: referrerId }],
+              OR: [{ id: referrerId }, { email: referrerId.toLowerCase().trim() }],
             },
           })
         }
 
         if (validReferrer && validReferrer.id !== user.id) {
-          initialPoints += 100 // Extra 100 pts for joining via referral
+          initialPoints += 100 // +100 bonus for joining with invite
 
-          // Award 100 pts to the referrer
+          // Award 100 bonus points to referrer
           await prisma.userCreatorLink.upsert({
             where: {
               userId_creatorId: {
@@ -87,7 +99,7 @@ export async function POST(request: Request) {
             },
           })
 
-          // Record referral entry
+          // Record referral in database
           await prisma.referral.create({
             data: {
               creatorId: creator.id,
@@ -109,16 +121,18 @@ export async function POST(request: Request) {
         })
       }
 
+      // 5. Create persistent session in Neon Postgres
       token = await createSession(user.id)
     } else {
       user = {
         id: 'user_' + Date.now(),
-        email: email.toLowerCase().trim(),
-        displayName: displayName || email.split('@')[0],
+        email: normalizedEmail,
+        displayName: displayName || normalizedEmail.split('@')[0],
         role: 'user',
       }
     }
 
+    // Set secure HTTP-only cookie
     const cookieStore = await cookies()
     cookieStore.set({
       name: AUTH_COOKIE_NAME,
