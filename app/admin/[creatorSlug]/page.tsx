@@ -1,6 +1,5 @@
 import CampfireApp from '@/components/campfire-app'
-import { requireCreatorAccess } from '@/lib/db'
-import { creator as mockCreator } from '@/lib/mock-data'
+import { prisma } from '@/lib/db'
 
 export default async function AdminPage({
   params,
@@ -8,10 +7,16 @@ export default async function AdminPage({
   params: Promise<{ creatorSlug: string }>
 }) {
   const { creatorSlug } = await params
-  const dbCreator = await requireCreatorAccess(creatorSlug)
+  let initialCreator = undefined
 
-  const initialCreator = dbCreator
-    ? {
+  if (process.env.DATABASE_URL) {
+    const dbCreator = await prisma.creator.findUnique({
+      where: { slug: creatorSlug },
+    })
+
+    if (dbCreator) {
+      initialCreator = {
+        id: dbCreator.id,
         slug: dbCreator.slug,
         displayName: dbCreator.displayName,
         handle: `@${dbCreator.slug}`,
@@ -23,10 +28,14 @@ export default async function AdminPage({
           .slice(0, 2),
         primaryColor: dbCreator.brandPrimaryColor || '#d11149',
         secondaryColor: dbCreator.brandSecondaryColor || '#0a0a0d',
-        welcomeMessage: dbCreator.welcomeMessage || mockCreator.welcomeMessage,
-        channelUrl: 'https://youtube.com',
+        welcomeMessage: dbCreator.welcomeMessage,
+        youtubeChannelId: dbCreator.youtubeChannelId,
+        channelUrl: dbCreator.youtubeChannelId
+          ? `https://youtube.com/channel/${dbCreator.youtubeChannelId}`
+          : 'https://youtube.com',
       }
-    : mockCreator
+    }
+  }
 
   return <CampfireApp initialCreator={initialCreator} initialView="admin" />
 }

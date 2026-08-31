@@ -1,5 +1,4 @@
 import { getAuthUser } from './custom-auth'
-import { fan } from './mock-data'
 
 export type AppUser = {
   id: string
@@ -9,7 +8,7 @@ export type AppUser = {
   avatarUrl?: string | null
 }
 
-export async function getCurrentUser(): Promise<AppUser> {
+export async function getCurrentUser(): Promise<AppUser | null> {
   const user = await getAuthUser()
   if (user) {
     return {
@@ -21,16 +20,13 @@ export async function getCurrentUser(): Promise<AppUser> {
     }
   }
 
-  // Seamless fallback for local preview
-  return {
-    id: 'fan-amina-01',
-    name: fan.name,
-    email: 'amina@example.com',
-    role: 'user',
-    avatarUrl: null,
-  }
+  return null
 }
 
-export async function requireUser() {
-  return getCurrentUser()
+export async function requireUser(): Promise<AppUser> {
+  const user = await getCurrentUser()
+  if (!user) {
+    throw new Error('Authentication required')
+  }
+  return user
 }

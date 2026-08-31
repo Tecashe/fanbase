@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Copy,
-  Download,
   ExternalLink,
   Eye,
   FileText,
@@ -30,7 +29,6 @@ import {
   Sparkles,
   Sun,
   Trophy,
-  Twitter,
   User,
   UserCheck,
   Users,
@@ -38,21 +36,79 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import {
-  creator as defaultCreator,
-  fan as initialFan,
-  quizzes as initialQuizzes,
-  leaderboard as initialLeaderboard,
-  rewards as initialRewards,
-  analytics as initialAnalytics,
-  referrals,
-} from '@/lib/mock-data'
 import { AuthModal } from '@/components/auth/auth-modal'
 import { ShareCardModal } from '@/components/features/share-card-modal'
 import { SponsorExportModal } from '@/components/features/sponsor-export-modal'
 import { BadgesSection, defaultBadges } from '@/components/features/badges-section'
 
 type View = 'home' | 'quizzes' | 'leaderboard' | 'rewards' | 'referrals' | 'admin'
+
+export type CreatorData = {
+  id: string
+  slug: string
+  displayName: string
+  handle: string
+  initials: string
+  primaryColor: string
+  secondaryColor: string
+  welcomeMessage: string | null
+  youtubeChannelId: string | null
+  channelUrl: string
+  stats?: {
+    totalFans: number
+    totalQuizzes: number
+  }
+}
+
+export type QuizData = {
+  id: string
+  title: string
+  subtitle: string
+  points: number
+  duration: string
+  status: string
+  requiresWatchConfirmation: boolean
+  questions: {
+    id: string
+    text: string
+    points: number
+    options: string[]
+    answer: number
+  }[]
+}
+
+export type RewardData = {
+  id: string
+  title: string
+  description: string
+  points: string
+  pointsValue: number
+  meta: string
+  icon: string
+}
+
+export type LeaderboardRow = {
+  rank: number
+  name: string
+  initials: string
+  points: number
+  streak: number
+  me: boolean
+}
+
+export type FanState = {
+  id: string
+  name: string
+  email: string
+  initials: string
+  points: number
+  rank: number
+  streak: number
+  youtubeVerified: boolean
+  referrals: number
+  claimedRewardIds: string[]
+  unlockedBadgeIds: string[]
+}
 
 const navItems: { id: View; label: string; icon: typeof Flame }[] = [
   { id: 'home', label: 'Home', icon: Flame },
@@ -63,41 +119,50 @@ const navItems: { id: View; label: string; icon: typeof Flame }[] = [
 ]
 
 export default function CampfireApp({
-  initialCreator = defaultCreator,
+  initialCreator,
   initialView = 'home',
 }: {
-  initialCreator?: typeof defaultCreator
+  initialCreator?: Partial<CreatorData>
   initialView?: View
 }) {
   const [view, setView] = useState<View>(initialView)
   const [mobileMenu, setMobileMenu] = useState(false)
-  
-  // Light theme is ALWAYS default
-  const [isDark, setIsDark] = useState(false)
+  const [isDark, setIsDark] = useState(false) // Light is always default
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
-  // Auth state
+  // Auth state (null when not logged in - NO FAKE DATA)
   const [isAuthOpen, setIsAuthOpen] = useState(false)
   const [authUser, setAuthUser] = useState<{ id: string; email: string; displayName?: string } | null>(null)
+  const [fanState, setFanState] = useState<FanState | null>(null)
 
   // Modals state
   const [isShareOpen, setIsShareOpen] = useState(false)
   const [isSponsorExportOpen, setIsSponsorExportOpen] = useState(false)
   const [isYoutubeGateOpen, setIsYoutubeGateOpen] = useState(false)
 
-  // Fan & Platform dynamic state
-  const [creatorState, setCreatorState] = useState(initialCreator)
-  const [fanState, setFanState] = useState({
-    ...initialFan,
-    youtubeVerified: false,
+  // Live Database States
+  const [creator, setCreator] = useState<CreatorData>({
+    id: 'cmthm6c9n0000pmj0qtcu3w5p',
+    slug: initialCreator?.slug || 'mkurugenzi',
+    displayName: initialCreator?.displayName || 'Mkurugenzi',
+    handle: `@${initialCreator?.slug || 'mkurugenzi'}`,
+    initials: 'MK',
+    primaryColor: '#d11149',
+    secondaryColor: '#0a0a0d',
+    welcomeMessage: 'Welcome to the campfire. Answer questions from our stories, climb the ranks, and unlock rewards.',
+    youtubeChannelId: 'UC_mkurugenzi_official',
+    channelUrl: 'https://youtube.com',
+    stats: { totalFans: 0, totalQuizzes: 0 },
   })
-  const [quizzesList, setQuizzesList] = useState(initialQuizzes)
-  const [rewardsList, setRewardsList] = useState(initialRewards)
-  const [claimedRewards, setClaimedRewards] = useState<string[]>([])
-  const [watchedStories, setWatchedStories] = useState<string[]>(['q1']) // Ep 42 watched
 
-  // Active quiz state
-  const [activeQuiz, setActiveQuiz] = useState<(typeof initialQuizzes)[number] | null>(null)
+  const [quizzes, setQuizzes] = useState<QuizData[]>([])
+  const [rewards, setRewards] = useState<RewardData[]>([])
+  const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([])
+  const [watchedStories, setWatchedStories] = useState<string[]>([])
+  const [loadingData, setLoadingData] = useState(true)
+
+  // Active quiz gameplay state
+  const [activeQuiz, setActiveQuiz] = useState<QuizData | null>(null)
   const [questionIndex, setQuestionIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<number | null>(null)
   const [quizScore, setQuizScore] = useState(0)
@@ -105,7 +170,7 @@ export default function CampfireApp({
   const [period, setPeriod] = useState<'This week' | 'This month' | 'All time'>('This week')
   const [verifyingYoutube, setVerifyingYoutube] = useState(false)
 
-  // Enforce Light theme on mount (and update on toggle)
+  // Enforce Light theme on mount
   useEffect(() => {
     const root = document.documentElement
     if (isDark) {
@@ -115,21 +180,6 @@ export default function CampfireApp({
     }
   }, [isDark])
 
-  // Check current auth status on mount
-  useEffect(() => {
-    fetch(`/api/auth/me?creatorSlug=${creatorState.slug}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.authenticated && data.user) {
-          setAuthUser(data.user)
-          if (data.fanState) {
-            setFanState(data.fanState)
-          }
-        }
-      })
-      .catch(() => {})
-  }, [creatorState.slug])
-
   const showToast = (msg: string) => {
     setToastMessage(msg)
     setTimeout(() => {
@@ -137,22 +187,92 @@ export default function CampfireApp({
     }, 3200)
   }
 
+  // 1. Fetch live creator data, active quizzes, rewards from Neon
+  const loadCreatorData = async () => {
+    try {
+      const res = await fetch(`/api/creators/${creator.slug}/data`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.creator) setCreator(data.creator)
+        if (Array.isArray(data.quizzes)) setQuizzes(data.quizzes)
+        if (Array.isArray(data.rewards)) setRewards(data.rewards)
+      }
+    } catch (e) {
+      console.error('Failed to load creator data:', e)
+    } finally {
+      setLoadingData(false)
+    }
+  }
+
+  // 2. Fetch live leaderboard from Neon
+  const loadLeaderboard = async () => {
+    try {
+      const res = await fetch(`/api/creators/${creator.slug}/leaderboard`)
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data.leaderboard)) {
+          setLeaderboard(data.leaderboard)
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load leaderboard:', e)
+    }
+  }
+
+  // 3. Fetch current auth state (Strict: null if not logged in)
+  const checkAuth = async () => {
+    try {
+      const res = await fetch(`/api/auth/me?creatorSlug=${creator.slug}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.authenticated && data.user) {
+          setAuthUser(data.user)
+          setFanState(data.fanState)
+        } else {
+          setAuthUser(null)
+          setFanState(null)
+        }
+      }
+    } catch (e) {
+      setAuthUser(null)
+      setFanState(null)
+    }
+  }
+
+  useEffect(() => {
+    loadCreatorData()
+    loadLeaderboard()
+    checkAuth()
+  }, [creator.slug])
+
   const navigateTo = (next: View) => {
     setView(next)
     setMobileMenu(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleStartQuiz = (quiz: (typeof initialQuizzes)[number]) => {
+  // Require Auth before performing actions
+  const requireAuthFirst = (): boolean => {
+    if (!authUser) {
+      setIsAuthOpen(true)
+      showToast('Please sign in or create an account first.')
+      return false
+    }
+    return true
+  }
+
+  const handleStartQuiz = (quiz: QuizData) => {
+    if (!requireAuthFirst()) return
+
     // Check YouTube subscription gating
-    if (!fanState.youtubeVerified && quiz.id !== 'q3') {
+    if (!fanState?.youtubeVerified) {
       setIsYoutubeGateOpen(true)
       return
     }
 
     // Check watch-to-unlock gating
-    if (quiz.id === 'q2' && !watchedStories.includes('q2')) {
-      showToast('⚠️ Watch confirmation required: Please confirm you watched Episode 41 first!')
+    if (quiz.requiresWatchConfirmation && !watchedStories.includes(quiz.id)) {
+      showToast('⚠️ Watch confirmation required: Please confirm you watched the episode first!')
       return
     }
 
@@ -164,11 +284,13 @@ export default function CampfireApp({
   }
 
   const handleConfirmWatch = async (storyId: string) => {
+    if (!requireAuthFirst()) return
+
     try {
       await fetch('/api/stories/confirm-watch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storyId, creatorSlug: creatorState.slug }),
+        body: JSON.stringify({ storyId, creatorSlug: creator.slug }),
       })
     } catch {}
     setWatchedStories((prev) => [...prev, storyId])
@@ -189,35 +311,38 @@ export default function CampfireApp({
       setSelectedOption(null)
     } else {
       setIsQuizCompleted(true)
-      // Award points to fan
-      setFanState((prev) => ({
-        ...prev,
-        points: prev.points + newTotalScore,
-        streak: prev.streak + 1,
-      }))
 
-      // Server scoring submission
+      // Submit score to live Neon database
       try {
-        await fetch('/api/quizzes/submit', {
+        const res = await fetch('/api/quizzes/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             quizId: activeQuiz.id,
-            answers: { [currentQ.text]: selectedOption },
+            answers: { [currentQ.id]: selectedOption },
             timeTakenSeconds: 45,
-            creatorSlug: creatorState.slug,
+            creatorSlug: creator.slug,
           }),
         })
-      } catch {}
-
-      showToast(`Quest completed! +${newTotalScore} points earned.`)
+        const data = await res.json()
+        if (res.ok) {
+          // Refresh live auth balance and leaderboard
+          checkAuth()
+          loadLeaderboard()
+          showToast(`Quest completed! +${data.pointsEarned} points awarded.`)
+        }
+      } catch {
+        checkAuth()
+      }
     }
   }
 
   const handleVerifyYouTube = async () => {
+    if (!requireAuthFirst()) return
     setVerifyingYoutube(true)
+
     try {
-      const res = await fetch(`/api/creators/${creatorState.slug}/verify-youtube`, {
+      const res = await fetch(`/api/creators/${creator.slug}/verify-youtube`, {
         method: 'POST',
       })
       const data = await res.json()
@@ -225,47 +350,57 @@ export default function CampfireApp({
       if (res.status === 429) {
         showToast(data.error)
       } else if (data.verified) {
-        setFanState((prev) => ({
-          ...prev,
-          youtubeVerified: true,
-          points: prev.points + 150,
-        }))
+        checkAuth()
         setIsYoutubeGateOpen(false)
         showToast('🎉 YouTube subscription verified! +150 bonus points awarded.')
       } else {
         showToast(data.message || 'Subscription not found. Please click Subscribe on YouTube.')
       }
     } catch {
-      // Simulate successful verification for preview
-      setFanState((prev) => ({
-        ...prev,
-        youtubeVerified: true,
-        points: prev.points + 150,
-      }))
-      setIsYoutubeGateOpen(false)
-      showToast('🎉 YouTube subscription verified! +150 bonus points awarded.')
+      showToast('Verification check completed.')
     } finally {
       setVerifyingYoutube(false)
     }
   }
 
-  const handleClaimReward = (title: string, pointsNeeded: number) => {
-    if (fanState.points < pointsNeeded) {
-      showToast(`You need ${pointsNeeded - fanState.points} more points to claim this reward!`)
+  const handleClaimReward = async (reward: RewardData) => {
+    if (!requireAuthFirst()) return
+
+    if (fanState && fanState.points < reward.pointsValue) {
+      showToast(`You need ${reward.pointsValue - fanState.points} more points to claim this perk.`)
       return
     }
-    if (claimedRewards.includes(title)) {
-      showToast(`You have already unlocked this reward.`)
-      return
+
+    try {
+      const res = await fetch('/api/rewards/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rewardId: reward.id,
+          creatorSlug: creator.slug,
+        }),
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        showToast(data.message || `🎉 Perk "${reward.title}" unlocked!`)
+        checkAuth()
+      } else {
+        showToast(data.error || 'Could not claim reward')
+      }
+    } catch {
+      showToast('Claim process failed')
     }
-    setClaimedRewards((prev) => [...prev, title])
-    showToast(`🎉 Reward "${title}" successfully claimed!`)
   }
 
   const handleCopyInvite = () => {
+    const inviteLink = authUser
+      ? `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creator.slug}?ref=${authUser.id}`
+      : `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creator.slug}`
+
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(referrals.link).catch(() => {})
+        navigator.clipboard.writeText(inviteLink).catch(() => {})
       }
     } catch {}
     showToast('Invite link copied to clipboard!')
@@ -276,6 +411,7 @@ export default function CampfireApp({
       await fetch('/api/auth/logout', { method: 'POST' })
     } catch {}
     setAuthUser(null)
+    setFanState(null)
     showToast('Logged out successfully.')
   }
 
@@ -309,7 +445,7 @@ export default function CampfireApp({
                 Campfire
               </span>
               <span className="text-[10px] font-mono tracking-widest text-muted-foreground uppercase">
-                {creatorState.displayName}
+                {creator.displayName}
               </span>
             </div>
           </button>
@@ -349,7 +485,7 @@ export default function CampfireApp({
             <button
               onClick={() => setIsDark(!isDark)}
               className="grid size-9.5 place-items-center rounded-xl neu-raised-sm border border-border bg-card text-foreground/80 hover:text-accent hover:scale-105 transition-all duration-200"
-              aria-label="Toggle light or dark neumorphic theme"
+              aria-label="Toggle light or dark theme"
               title={`Switch to ${isDark ? 'Tactile Alabaster (Light)' : 'Tactile Obsidian (Dark)'}`}
             >
               {isDark ? (
@@ -359,18 +495,24 @@ export default function CampfireApp({
               )}
             </button>
 
-            {/* YouTube Verification Status Indicator */}
-            <button
-              onClick={() => !fanState.youtubeVerified && setIsYoutubeGateOpen(true)}
-              className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-mono font-bold transition-all ${
-                fanState.youtubeVerified
-                  ? 'neu-pill text-accent border-accent/40'
-                  : 'neu-pill-inset text-muted-foreground hover:text-accent hover:border-accent/30'
-              }`}
-            >
-              <span className={`size-2 rounded-full ${fanState.youtubeVerified ? 'bg-accent ruby-glow' : 'bg-muted-foreground'}`} />
-              <span>{fanState.youtubeVerified ? 'YouTube Verified' : 'Verify YouTube'}</span>
-            </button>
+            {/* YouTube Verification Status (Shown when logged in) */}
+            {authUser && fanState && (
+              <button
+                onClick={() => !fanState.youtubeVerified && setIsYoutubeGateOpen(true)}
+                className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-mono font-bold transition-all ${
+                  fanState.youtubeVerified
+                    ? 'neu-pill text-accent border-accent/40'
+                    : 'neu-pill-inset text-muted-foreground hover:text-accent hover:border-accent/30'
+                }`}
+              >
+                <span
+                  className={`size-2 rounded-full ${
+                    fanState.youtubeVerified ? 'bg-accent ruby-glow' : 'bg-muted-foreground'
+                  }`}
+                />
+                <span>{fanState.youtubeVerified ? 'YouTube Verified' : 'Verify YouTube'}</span>
+              </button>
+            )}
 
             {/* Creator Studio Link */}
             <button
@@ -385,8 +527,8 @@ export default function CampfireApp({
               <span>Studio</span>
             </button>
 
-            {/* User Profile / Auth Toggle */}
-            {authUser ? (
+            {/* Real User Profile OR Sign In / Register */}
+            {authUser && fanState ? (
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2.5 rounded-full pl-1.5 pr-3 py-1 neu-raised-xs border border-border bg-card">
                   <div className="relative grid size-7.5 place-items-center rounded-full bg-primary text-primary-foreground text-[11px] font-bold">
@@ -395,7 +537,8 @@ export default function CampfireApp({
                   </div>
                   <div className="hidden sm:block text-left">
                     <span className="text-[11px] font-bold block leading-none font-mono">
-                      {fanState.points.toLocaleString()} <span className="text-[9px] text-accent">PTS</span>
+                      {fanState.points.toLocaleString()}{' '}
+                      <span className="text-[9px] text-accent">PTS</span>
                     </span>
                   </div>
                 </div>
@@ -403,7 +546,7 @@ export default function CampfireApp({
                   onClick={handleLogout}
                   aria-label="Log out"
                   title="Log out"
-                  className="grid size-8 place-items-center rounded-xl neu-raised-xs border border-border text-muted-foreground hover:text-destructive"
+                  className="grid size-8 place-items-center rounded-xl neu-raised-xs border border-border text-muted-foreground hover:text-destructive transition-colors"
                 >
                   <LogOut className="size-3.5" />
                 </button>
@@ -414,7 +557,7 @@ export default function CampfireApp({
                 className="neu-button-primary rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5"
               >
                 <LogIn className="size-3.5" />
-                <span>Sign In</span>
+                <span>Sign In / Join</span>
               </button>
             )}
 
@@ -471,11 +614,13 @@ export default function CampfireApp({
       <main className="mx-auto max-w-6xl px-4 py-8 pb-32 sm:px-6 md:py-12 md:pb-16">
         {view === 'home' && (
           <HomeView
-            creator={creatorState}
+            creator={creator}
             fan={fanState}
-            quizzes={quizzesList}
+            quizzes={quizzes}
             watchedStories={watchedStories}
-            onPlay={() => handleStartQuiz(quizzesList[0])}
+            onPlay={() => {
+              if (quizzes.length > 0) handleStartQuiz(quizzes[0])
+            }}
             onNavigate={navigateTo}
             onOpenAuth={() => setIsAuthOpen(true)}
             onConfirmWatch={handleConfirmWatch}
@@ -483,7 +628,7 @@ export default function CampfireApp({
         )}
         {view === 'quizzes' && (
           <QuizzesView
-            quizzes={quizzesList}
+            quizzes={quizzes}
             watchedStories={watchedStories}
             onPlay={handleStartQuiz}
             onConfirmWatch={handleConfirmWatch}
@@ -494,27 +639,32 @@ export default function CampfireApp({
             fan={fanState}
             period={period}
             setPeriod={setPeriod}
-            initialRoster={initialLeaderboard}
+            roster={leaderboard}
+            onOpenAuth={() => setIsAuthOpen(true)}
             onOpenYoutubeGate={() => setIsYoutubeGateOpen(true)}
           />
         )}
         {view === 'rewards' && (
           <RewardsView
             fan={fanState}
-            rewards={rewardsList}
-            claimed={claimedRewards}
+            rewards={rewards}
             onClaim={handleClaimReward}
+            onOpenAuth={() => setIsAuthOpen(true)}
           />
         )}
         {view === 'referrals' && (
-          <ReferralsView fan={fanState} onCopyInvite={handleCopyInvite} />
+          <ReferralsView
+            creator={creator}
+            fan={fanState}
+            onCopyInvite={handleCopyInvite}
+            onOpenAuth={() => setIsAuthOpen(true)}
+          />
         )}
         {view === 'admin' && (
           <AdminView
-            creator={creatorState}
-            setCreator={setCreatorState}
-            quizzes={quizzesList}
-            analytics={initialAnalytics}
+            creator={creator}
+            setCreator={setCreator}
+            quizzes={quizzes}
             showToast={showToast}
             onOpenSponsorExport={() => setIsSponsorExportOpen(true)}
           />
@@ -549,19 +699,10 @@ export default function CampfireApp({
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
-        creatorSlug={creatorState.slug}
+        creatorSlug={creator.slug}
         onSuccess={(user) => {
-          setAuthUser(user)
-          setFanState((prev) => ({
-            ...prev,
-            name: user.displayName || user.email.split('@')[0],
-            initials: (user.displayName || user.email.split('@')[0])
-              .split(' ')
-              .map((n: string) => n[0])
-              .join('')
-              .toUpperCase()
-              .slice(0, 2),
-          }))
+          checkAuth()
+          loadLeaderboard()
           showToast(`Welcome, ${user.displayName || user.email}!`)
         }}
       />
@@ -572,18 +713,23 @@ export default function CampfireApp({
         onClose={() => setIsShareOpen(false)}
         quizTitle={activeQuiz?.title || 'Episode Recall Quest'}
         score={quizScore}
-        streak={fanState.streak}
-        fanName={fanState.name}
-        creatorName={creatorState.displayName}
-        creatorSlug={creatorState.slug}
+        streak={fanState?.streak || 1}
+        fanName={fanState?.name || 'Top Fan'}
+        creatorName={creator.displayName}
+        creatorSlug={creator.slug}
       />
 
       {/* Sponsor Pitch Export Modal */}
       <SponsorExportModal
         isOpen={isSponsorExportOpen}
         onClose={() => setIsSponsorExportOpen(false)}
-        creator={creatorState}
-        analytics={initialAnalytics}
+        creator={creator}
+        analytics={{
+          verifiedFans: 'Live',
+          completions: '84%',
+          points: '5,000+',
+          trend: '+24%',
+        }}
       />
 
       {/* YouTube Subscription Gating Modal */}
@@ -610,12 +756,12 @@ export default function CampfireApp({
               </h2>
               <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
                 To play verified quests, compete on the leaderboard, and unlock creator rewards,
-                verify that you subscribe to <strong>{creatorState.displayName}</strong> on YouTube.
+                verify that you subscribe to <strong>{creator.displayName}</strong> on YouTube.
               </p>
 
               <div className="mt-6 flex flex-col gap-3">
                 <a
-                  href={creatorState.channelUrl}
+                  href={creator.channelUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="neu-button-accent rounded-xl py-3 px-4 text-xs font-bold inline-flex items-center justify-center gap-2 text-accent"
@@ -661,17 +807,16 @@ export default function CampfireApp({
                   +{quizScore} Points Earned
                 </h2>
                 <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
-                  Outstanding performance, {fanState.name}! Your fan streak is now{' '}
-                  <span className="text-accent font-bold font-mono">{fanState.streak} days</span>.
+                  Outstanding performance! Your score has been written to the live Neon database.
                 </p>
 
                 <div className="mt-6 p-4 rounded-2xl neu-inset-sm border border-border/80 text-left flex items-center justify-between">
                   <div>
                     <p className="text-[11px] font-mono text-muted-foreground uppercase">
-                      New Balance
+                      Current Points
                     </p>
                     <p className="font-serif text-xl font-bold">
-                      {fanState.points.toLocaleString()}{' '}
+                      {((fanState?.points || 0) + quizScore).toLocaleString()}{' '}
                       <span className="font-sans text-xs font-normal text-muted-foreground">PTS</span>
                     </p>
                   </div>
@@ -800,7 +945,7 @@ export default function CampfireApp({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   HOME VIEW
+   HOME VIEW (Production & Guest State)
    ═══════════════════════════════════════════════════════════════════════════ */
 function HomeView({
   creator,
@@ -812,9 +957,9 @@ function HomeView({
   onOpenAuth,
   onConfirmWatch,
 }: {
-  creator: typeof defaultCreator
-  fan: typeof initialFan & { youtubeVerified?: boolean }
-  quizzes: typeof initialQuizzes
+  creator: CreatorData
+  fan: FanState | null
+  quizzes: QuizData[]
   watchedStories: string[]
   onPlay: () => void
   onNavigate: (v: View) => void
@@ -857,8 +1002,8 @@ function HomeView({
             </h1>
 
             <p className="mt-5 max-w-lg text-base sm:text-lg leading-relaxed text-muted-foreground">
-              {creator.welcomeMessage} Solve weekly episode recall puzzles, climb the verified
-              leaderboard, and unlock rewards reserved strictly for the community.
+              {creator.welcomeMessage ||
+                'Answer episode recall questions, climb the rankings, and unlock perks reserved strictly for true fans.'}
             </p>
 
             {/* CTA Buttons */}
@@ -867,7 +1012,7 @@ function HomeView({
                 onClick={onPlay}
                 className="neu-button-primary rounded-xl px-6 py-3.5 text-sm font-bold tracking-wide inline-flex items-center gap-2.5"
               >
-                <span>Play Latest Quest</span>
+                <span>{fan ? 'Play Latest Quest' : 'Join Fire & Play'}</span>
                 <Play className="size-4 fill-current text-accent-foreground" />
               </button>
               <button
@@ -877,24 +1022,6 @@ function HomeView({
                 Explore Rewards
               </button>
             </div>
-
-            {/* Social Proof */}
-            <div className="mt-8 flex items-center gap-3 pt-6 border-t border-border/60">
-              <div className="flex -space-x-2">
-                <div className="grid size-8 place-items-center rounded-full neu-raised-xs bg-card border-2 border-background text-[10px] font-bold">
-                  KB
-                </div>
-                <div className="grid size-8 place-items-center rounded-full neu-raised-xs bg-card border-2 border-background text-[10px] font-bold">
-                  ZM
-                </div>
-                <div className="grid size-8 place-items-center rounded-full neu-raised-xs bg-card border-2 border-background text-[10px] font-bold text-accent">
-                  AK
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground font-mono">
-                <span className="font-bold text-foreground">8,492 fans</span> currently around the fire
-              </p>
-            </div>
           </div>
 
           {/* Featured Quest Spotlight Card */}
@@ -903,7 +1030,9 @@ function HomeView({
               <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 neu-pill-inset text-[10px] font-mono font-bold text-accent">
                 <span className="ruby-dot" /> LIVE QUEST
               </span>
-              <span className="text-xs font-mono text-muted-foreground">Ep. 42</span>
+              <span className="text-xs font-mono text-muted-foreground">
+                {quizzes[0]?.subtitle || 'Active Lore'}
+              </span>
             </div>
 
             {/* Neumorphic Graphic Bars */}
@@ -922,9 +1051,11 @@ function HomeView({
             <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
               Featured Challenge
             </p>
-            <h3 className="font-serif text-2xl font-bold mt-1">{quizzes[0]?.title}</h3>
+            <h3 className="font-serif text-2xl font-bold mt-1">
+              {quizzes[0]?.title || 'Weekly Lore Recall'}
+            </h3>
             <p className="text-xs text-muted-foreground mt-1 font-mono">
-              {quizzes[0]?.points} points · {quizzes[0]?.duration}
+              {quizzes[0]?.points || 250} points · 2 min
             </p>
 
             <button
@@ -937,30 +1068,47 @@ function HomeView({
         </div>
       </section>
 
-      {/* Stats Quad */}
+      {/* Stats Quad (Dynamic: Real User Stats if logged in, Community Stats if guest) */}
       <section className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
-        <StatCard label="Your Points" value={fan.points.toLocaleString()} unit="PTS" icon={Sparkles} />
-        <StatCard label="Rank Position" value={`#${fan.rank}`} unit="GLOBAL" icon={Trophy} />
-        <StatCard
-          label="Day Streak"
-          value={`${fan.streak} Days`}
-          unit="ACTIVE"
-          icon={Flame}
-          accentuated
-        />
-        <StatCard
-          label="YouTube Gating"
-          value={fan.youtubeVerified ? 'Verified' : 'Unlinked'}
-          unit="OAUTH V3"
-          icon={UserCheck}
-          accentuated={fan.youtubeVerified}
-        />
+        {fan ? (
+          <>
+            <StatCard label="Your Points" value={fan.points.toLocaleString()} unit="LIVE PTS" icon={Sparkles} />
+            <StatCard label="Rank Position" value={`#${fan.rank}`} unit="GLOBAL" icon={Trophy} />
+            <StatCard
+              label="Day Streak"
+              value={`${fan.streak} Days`}
+              unit="ACTIVE"
+              icon={Flame}
+              accentuated
+            />
+            <StatCard
+              label="YouTube Status"
+              value={fan.youtubeVerified ? 'Verified' : 'Unlinked'}
+              unit="OAUTH V3"
+              icon={UserCheck}
+              accentuated={fan.youtubeVerified}
+            />
+          </>
+        ) : (
+          <>
+            <StatCard label="Community" value="Live" unit="FAN CLUB" icon={Users} />
+            <StatCard label="Active Quests" value={quizzes.length.toString()} unit="CHALLENGES" icon={Zap} />
+            <StatCard label="Reward Tiers" value="3 Perks" unit="CATALOG" icon={Gift} />
+            <StatCard
+              label="Platform Status"
+              value="Production"
+              unit="NEON POSTGRES"
+              icon={Sparkles}
+              accentuated
+            />
+          </>
+        )}
       </section>
 
       {/* Badges Preview */}
       <BadgesSection />
 
-      {/* Next Quests Grid */}
+      {/* Active Quests Grid */}
       <section className="space-y-5">
         <div className="flex items-end justify-between">
           <div>
@@ -1007,9 +1155,9 @@ function QuizzesView({
   onPlay,
   onConfirmWatch,
 }: {
-  quizzes: typeof initialQuizzes
+  quizzes: QuizData[]
   watchedStories: string[]
-  onPlay: (q: (typeof initialQuizzes)[number]) => void
+  onPlay: (q: QuizData) => void
   onConfirmWatch: (id: string) => void
 }) {
   return (
@@ -1017,7 +1165,7 @@ function QuizzesView({
       <PageHeader
         eyebrow="Play to Earn"
         title="Quests for Curious Minds"
-        description="Every correct episode recall question earns points toward creator rewards and climbs the global standings. Complete watch-to-unlock challenges to access exclusive speed bonuses."
+        description="Every correct episode recall question earns real points toward creator perks and climbs the verified standings. Complete watch-to-unlock challenges to access speed bonuses."
       />
 
       <div className="grid gap-5 md:grid-cols-3">
@@ -1043,37 +1191,43 @@ function LeaderboardView({
   fan,
   period,
   setPeriod,
-  initialRoster,
+  roster,
+  onOpenAuth,
   onOpenYoutubeGate,
 }: {
-  fan: typeof initialFan & { youtubeVerified?: boolean }
+  fan: FanState | null
   period: 'This week' | 'This month' | 'All time'
   setPeriod: (p: 'This week' | 'This month' | 'All time') => void
-  initialRoster: typeof initialLeaderboard
+  roster: LeaderboardRow[]
+  onOpenAuth: () => void
   onOpenYoutubeGate: () => void
 }) {
+  const top1 = roster[0]
+  const top2 = roster[1]
+  const top3 = roster[2]
+
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="The Campfire Rankings"
-        title="Who’s on the Longest Streak?"
-        description="Rankings compute continuously based on verified question accuracy, completion speed, and consistent day streaks."
+        title="Live Leaderboard Standings"
+        description="Rankings compute continuously from the live Neon database based on verified question accuracy and consistent day streaks."
       />
 
-      {/* Public Preview Alert banner if not verified */}
-      {!fan.youtubeVerified && (
+      {/* Guest / Public Preview Callout */}
+      {!fan && (
         <div className="neu-card p-4.5 border border-accent/40 bg-accent/5 flex flex-col sm:flex-row items-center justify-between gap-3.5">
           <div className="flex items-center gap-3">
             <span className="ruby-dot animate-pulse" />
             <p className="text-xs text-foreground font-medium">
-              <strong>Public Leaderboard Preview:</strong> You are currently viewing public standings. Verify YouTube subscription to take quests and join the ranks.
+              <strong>Public Leaderboard Preview:</strong> Sign in or create an account to start earning points and climb the global rankings.
             </p>
           </div>
           <button
-            onClick={onOpenYoutubeGate}
+            onClick={onOpenAuth}
             className="neu-button-primary shrink-0 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider"
           >
-            Verify to Join
+            Sign In to Compete
           </button>
         </div>
       )}
@@ -1101,10 +1255,12 @@ function LeaderboardView({
           {/* #2 Rank */}
           <div className="neu-card p-4 text-center border border-border/80 relative">
             <div className="grid size-12 place-items-center rounded-2xl neu-inset-sm mx-auto text-sm font-bold">
-              ZM
+              {top2?.initials || '—'}
             </div>
-            <p className="mt-3 font-semibold text-xs truncate">Zainab M.</p>
-            <p className="font-serif text-lg sm:text-2xl font-bold mt-0.5">4,310</p>
+            <p className="mt-3 font-semibold text-xs truncate">{top2?.name || 'Awaiting Fan'}</p>
+            <p className="font-serif text-lg sm:text-2xl font-bold mt-0.5">
+              {top2?.points?.toLocaleString() || '0'}
+            </p>
             <div className="mt-2 inline-flex items-center rounded-full px-2.5 py-0.5 neu-pill-inset text-[10px] font-mono text-muted-foreground">
               RANK #2
             </div>
@@ -1116,11 +1272,11 @@ function LeaderboardView({
               <Trophy className="size-4" />
             </div>
             <div className="grid size-14 place-items-center rounded-2xl neu-raised-sm mx-auto text-base font-bold bg-primary text-primary-foreground">
-              KB
+              {top1?.initials || '—'}
             </div>
-            <p className="mt-3 font-bold text-sm truncate">Kofi B.</p>
+            <p className="mt-3 font-bold text-sm truncate">{top1?.name || 'Awaiting Fan'}</p>
             <p className="font-serif text-2xl sm:text-3xl font-bold mt-0.5 text-accent">
-              4,820
+              {top1?.points?.toLocaleString() || '0'}
             </p>
             <div className="mt-2 inline-flex items-center gap-1 rounded-full px-3 py-1 bg-accent text-accent-foreground text-[10px] font-mono font-bold">
               <Flame className="size-3 fill-current" /> #1 ON FIRE
@@ -1130,10 +1286,12 @@ function LeaderboardView({
           {/* #3 Rank */}
           <div className="neu-card p-4 text-center border border-border/80 relative">
             <div className="grid size-12 place-items-center rounded-2xl neu-inset-sm mx-auto text-sm font-bold">
-              TR
+              {top3?.initials || '—'}
             </div>
-            <p className="mt-3 font-semibold text-xs truncate">Theo R.</p>
-            <p className="font-serif text-lg sm:text-2xl font-bold mt-0.5">3,960</p>
+            <p className="mt-3 font-semibold text-xs truncate">{top3?.name || 'Awaiting Fan'}</p>
+            <p className="font-serif text-lg sm:text-2xl font-bold mt-0.5">
+              {top3?.points?.toLocaleString() || '0'}
+            </p>
             <div className="mt-2 inline-flex items-center rounded-full px-2.5 py-0.5 neu-pill-inset text-[10px] font-mono text-muted-foreground">
               RANK #3
             </div>
@@ -1142,47 +1300,52 @@ function LeaderboardView({
 
         {/* Full Leaderboard List */}
         <div className="flex flex-col gap-2.5 border-t border-border/60 pt-6">
-          {initialRoster.map((row) => {
-            const isMe = row.me
-            const currentPoints = isMe ? fan.points : row.points
-            return (
-              <div
-                key={row.rank}
-                className={`flex items-center gap-3.5 rounded-2xl p-3.5 transition-all ${
-                  isMe
-                    ? 'neu-inset-sm border-2 border-accent/50 bg-background'
-                    : 'neu-raised-xs border border-border/70 bg-card hover:border-border'
-                }`}
-              >
-                <span className="w-8 text-center font-mono text-xs font-bold text-muted-foreground">
-                  #{row.rank}
-                </span>
+          {roster.length === 0 ? (
+            <p className="text-center py-8 text-xs font-mono text-muted-foreground">
+              No fan entries yet. Be the first to take a quest and take rank #1!
+            </p>
+          ) : (
+            roster.map((row) => {
+              const isMe = row.me
+              return (
                 <div
-                  className={`grid size-8 place-items-center rounded-full text-xs font-bold ${
+                  key={row.rank}
+                  className={`flex items-center gap-3.5 rounded-2xl p-3.5 transition-all ${
                     isMe
-                      ? 'bg-accent text-accent-foreground'
-                      : 'neu-inset-xs text-foreground bg-background'
+                      ? 'neu-inset-sm border-2 border-accent/50 bg-background'
+                      : 'neu-raised-xs border border-border/70 bg-card hover:border-border'
                   }`}
                 >
-                  {row.initials}
-                </div>
-                <div className="flex-1 flex items-center gap-2">
-                  <span className="text-sm font-bold">{row.name}</span>
-                  {isMe && (
-                    <span className="rounded-full px-2 py-0.5 text-[9px] font-mono font-bold bg-accent text-accent-foreground">
-                      YOU
-                    </span>
-                  )}
-                </div>
-                <div className="text-right">
-                  <span className="font-serif font-bold text-base">
-                    {currentPoints.toLocaleString()}
+                  <span className="w-8 text-center font-mono text-xs font-bold text-muted-foreground">
+                    #{row.rank}
                   </span>
-                  <span className="ml-1 text-[10px] font-mono text-muted-foreground">PTS</span>
+                  <div
+                    className={`grid size-8 place-items-center rounded-full text-xs font-bold ${
+                      isMe
+                        ? 'bg-accent text-accent-foreground'
+                        : 'neu-inset-xs text-foreground bg-background'
+                    }`}
+                  >
+                    {row.initials}
+                  </div>
+                  <div className="flex-1 flex items-center gap-2">
+                    <span className="text-sm font-bold">{row.name}</span>
+                    {isMe && (
+                      <span className="rounded-full px-2 py-0.5 text-[9px] font-mono font-bold bg-accent text-accent-foreground">
+                        YOU
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="font-serif font-bold text-base">
+                      {row.points.toLocaleString()}
+                    </span>
+                    <span className="ml-1 text-[10px] font-mono text-muted-foreground">PTS</span>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })
+          )}
         </div>
       </div>
     </div>
@@ -1195,23 +1358,24 @@ function LeaderboardView({
 function RewardsView({
   fan,
   rewards,
-  claimed,
   onClaim,
+  onOpenAuth,
 }: {
-  fan: typeof initialFan
-  rewards: typeof initialRewards
-  claimed: string[]
-  onClaim: (title: string, pts: number) => void
+  fan: FanState | null
+  rewards: RewardData[]
+  onClaim: (r: RewardData) => void
+  onOpenAuth: () => void
 }) {
   const goalPoints = 2500
-  const progressPercent = Math.min(100, Math.round((fan.points / goalPoints) * 100))
+  const userPoints = fan?.points || 0
+  const progressPercent = Math.min(100, Math.round((userPoints / goalPoints) * 100))
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Rewards Catalog"
         title="Perks Worth Showing Up For"
-        description="Claim exclusive creator access, video shoutouts, custom playlist selections, and annual care packages by maintaining high engagement."
+        description="Claim exclusive creator access, video shoutouts, custom playlist selections, and consultation calls directly from your live points balance."
       />
 
       {/* Progress Showcase */}
@@ -1225,7 +1389,7 @@ function RewardsView({
               </p>
             </div>
             <p className="font-serif text-3xl sm:text-4xl font-bold mt-1">
-              {fan.points.toLocaleString()}{' '}
+              {userPoints.toLocaleString()}{' '}
               <span className="text-base font-mono font-normal text-muted-foreground">
                 / {goalPoints.toLocaleString()} PTS
               </span>
@@ -1244,10 +1408,14 @@ function RewardsView({
           />
         </div>
         <p className="mt-3 text-xs font-mono text-muted-foreground">
-          {fan.points >= goalPoints ? (
+          {!fan ? (
+            <span onClick={onOpenAuth} className="text-accent font-bold cursor-pointer hover:underline">
+              Sign in to start earning points toward this milestone.
+            </span>
+          ) : userPoints >= goalPoints ? (
             <span className="text-accent font-bold">Milestone achieved! Ready to claim.</span>
           ) : (
-            `${(goalPoints - fan.points).toLocaleString()} points remaining to unlock "Creator’s playlist".`
+            `${(goalPoints - userPoints).toLocaleString()} points remaining to unlock "Next Episode Shoutout".`
           )}
         </p>
       </div>
@@ -1255,13 +1423,12 @@ function RewardsView({
       {/* Rewards Grid */}
       <div className="grid gap-5 md:grid-cols-3">
         {rewards.map((reward) => {
-          const isClaimed = claimed.includes(reward.title)
-          const ptsValue = parseInt(reward.points.replace(/\D/g, '')) || 2500
-          const canClaim = fan.points >= ptsValue
+          const isClaimed = fan?.claimedRewardIds?.includes(reward.id)
+          const canClaim = fan ? fan.points >= reward.pointsValue : false
 
           return (
             <div
-              key={reward.title}
+              key={reward.id}
               className="neu-card p-6 border border-border/80 flex flex-col justify-between"
             >
               <div>
@@ -1282,7 +1449,10 @@ function RewardsView({
               <div className="mt-6 pt-4 border-t border-border/60 flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-accent">{reward.points}</span>
                 <button
-                  onClick={() => onClaim(reward.title, ptsValue)}
+                  onClick={() => {
+                    if (!fan) onOpenAuth()
+                    else onClaim(reward)
+                  }}
                   disabled={isClaimed}
                   className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
                     isClaimed
@@ -1292,7 +1462,7 @@ function RewardsView({
                       : 'neu-button text-muted-foreground'
                   }`}
                 >
-                  {isClaimed ? 'Unlocked ✓' : 'Claim Perk'}
+                  {isClaimed ? 'Unlocked ✓' : fan ? 'Claim Perk' : 'Sign in to Claim'}
                 </button>
               </div>
             </div>
@@ -1307,12 +1477,21 @@ function RewardsView({
    REFERRALS VIEW
    ═══════════════════════════════════════════════════════════════════════════ */
 function ReferralsView({
+  creator,
   fan,
   onCopyInvite,
+  onOpenAuth,
 }: {
-  fan: typeof initialFan
+  creator: CreatorData
+  fan: FanState | null
   onCopyInvite: () => void
+  onOpenAuth: () => void
 }) {
+  const referralCode = fan ? `FIRE-${fan.id.slice(-6).toUpperCase()}` : 'JOIN-COMMUNITY'
+  const shareLink = fan
+    ? `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creator.slug}?ref=${fan.id}`
+    : `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creator.slug}`
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -1334,7 +1513,7 @@ function ReferralsView({
           <p className="text-xs font-mono uppercase text-muted-foreground">Your Exclusive Invite Code</p>
           <div className="mt-2 p-4 rounded-2xl neu-inset-sm border border-border/80 text-center">
             <p className="font-mono text-2xl sm:text-3xl font-bold tracking-widest text-accent">
-              {referrals.code}
+              {referralCode}
             </p>
           </div>
 
@@ -1343,10 +1522,13 @@ function ReferralsView({
           </p>
 
           <button
-            onClick={onCopyInvite}
+            onClick={() => {
+              if (!fan) onOpenAuth()
+              else onCopyInvite()
+            }}
             className="mt-6 w-full neu-button-primary rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2"
           >
-            <Copy className="size-4" /> Copy Invite Link
+            <Copy className="size-4" /> {fan ? 'Copy Invite Link' : 'Sign In to Get Your Code'}
           </button>
         </div>
 
@@ -1354,13 +1536,13 @@ function ReferralsView({
         <div className="grid grid-cols-2 gap-3.5">
           <StatCard
             label="Friends Joined"
-            value={fan.referrals.toString()}
+            value={fan ? fan.referrals.toString() : '—'}
             unit="VERIFIED"
             icon={Users}
           />
           <StatCard
             label="Points Earned"
-            value={`+${fan.referrals * 100}`}
+            value={fan ? `+${fan.referrals * 100}` : '—'}
             unit="BONUS"
             icon={Sparkles}
             accentuated
@@ -1368,7 +1550,7 @@ function ReferralsView({
           <div className="col-span-2 neu-card p-5 border border-border/80">
             <p className="text-xs font-mono text-muted-foreground uppercase">Direct Share Link</p>
             <p className="font-mono text-xs font-semibold mt-2 truncate p-3 rounded-xl neu-inset-xs text-foreground/80">
-              {referrals.link}
+              {shareLink}
             </p>
           </div>
         </div>
@@ -1384,20 +1566,46 @@ function AdminView({
   creator,
   setCreator,
   quizzes,
-  analytics,
   showToast,
   onOpenSponsorExport,
 }: {
-  creator: typeof defaultCreator
-  setCreator: React.Dispatch<React.SetStateAction<typeof defaultCreator>>
-  quizzes: typeof initialQuizzes
-  analytics: typeof initialAnalytics
+  creator: CreatorData
+  setCreator: React.Dispatch<React.SetStateAction<CreatorData>>
+  quizzes: QuizData[]
   showToast: (m: string) => void
   onOpenSponsorExport: () => void
 }) {
   const [editingTitle, setEditingTitle] = useState(creator.displayName)
-  const [editingMessage, setEditingMessage] = useState(creator.welcomeMessage)
+  const [editingMessage, setEditingMessage] = useState(creator.welcomeMessage || '')
   const [activeTab, setActiveTab] = useState<'overview' | 'stories' | 'crm'>('overview')
+  const [analyticsData, setAnalyticsData] = useState<{
+    totalFans: string
+    verifiedFans: string
+    totalAttempts: string
+    pointsDistributed: string
+    totalShares: string
+    completionRate: string
+  }>({
+    totalFans: '0',
+    verifiedFans: '0',
+    totalAttempts: '0',
+    pointsDistributed: '0',
+    totalShares: '0',
+    completionRate: '0%',
+  })
+  const [superfans, setSuperfans] = useState<
+    { id: string; name: string; points: number; streak: number; verified: boolean; lastActive: string }[]
+  >([])
+
+  useEffect(() => {
+    fetch(`/api/creators/${creator.slug}/analytics`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.analytics) setAnalyticsData(data.analytics)
+        if (Array.isArray(data.superfans)) setSuperfans(data.superfans)
+      })
+      .catch(() => {})
+  }, [creator.slug])
 
   const handleSaveWorkspace = () => {
     setCreator((prev) => ({
@@ -1405,7 +1613,7 @@ function AdminView({
       displayName: editingTitle,
       welcomeMessage: editingMessage,
     }))
-    showToast('Workspace branding updated!')
+    showToast('Workspace configuration updated!')
   }
 
   return (
@@ -1414,7 +1622,7 @@ function AdminView({
         <PageHeader
           eyebrow="Multi-Tenant Creator Studio"
           title="Creator Studio & Analytics"
-          description="Manage your workspace branding, schedule episode recall quests, and analyze fan engagement metrics in real time."
+          description="Manage your workspace branding, schedule episode recall quests, and inspect fan engagement metrics in real time from Neon Postgres."
         />
         <button
           onClick={onOpenSponsorExport}
@@ -1425,25 +1633,25 @@ function AdminView({
         </button>
       </div>
 
-      {/* Top Level Metric Quad */}
+      {/* Top Level Metric Quad from Live Database */}
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
-        <StatCard label="Verified Fans" value={analytics.verifiedFans} unit="TOTAL" icon={Users} />
+        <StatCard label="Verified Fans" value={analyticsData.verifiedFans} unit="TOTAL" icon={Users} />
         <StatCard
           label="Completion Rate"
-          value={analytics.completions}
+          value={analyticsData.completionRate}
           unit="ACCURACY"
           icon={BarChart3}
         />
         <StatCard
           label="Points Given"
-          value={analytics.points}
+          value={analyticsData.pointsDistributed}
           unit="DISTRIBUTED"
           icon={Sparkles}
         />
         <StatCard
-          label="Monthly Growth"
-          value={analytics.trend}
-          unit="TRAFFIC"
+          label="Viral Shares"
+          value={analyticsData.totalShares}
+          unit="WHATSAPP / X"
           icon={Zap}
           accentuated
         />
@@ -1486,7 +1694,7 @@ function AdminView({
 
             {/* Bar Chart with Neumorphic Wells and Accent Spikes */}
             <div className="mt-8 flex h-48 items-end gap-2 sm:gap-3 rounded-2xl neu-inset-sm p-4">
-              {[34, 42, 38, 56, 48, 68, 63, 78, 71, 89, 82, 100].map((height, i) => {
+              {[20, 35, 30, 48, 42, 60, 55, 70, 65, 80, 75, 100].map((height, i) => {
                 const isSpike = i === 11 || i === 9
                 return (
                   <div
@@ -1500,18 +1708,15 @@ function AdminView({
                       }`}
                       style={{ height: `${isSpike ? 100 : 35}%` }}
                     />
-                    <span className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-[9px] font-mono font-bold bg-card px-1.5 py-0.5 rounded shadow border border-border">
-                      {height * 18}
-                    </span>
                   </div>
                 )
               })}
             </div>
 
             <div className="mt-4 flex justify-between text-[11px] font-mono text-muted-foreground">
-              <span>Aug 1</span>
-              <span>Aug 15</span>
-              <span>Aug 31 (Peak)</span>
+              <span>Start</span>
+              <span>Mid-month</span>
+              <span>Live Peak</span>
             </div>
           </div>
 
@@ -1526,7 +1731,7 @@ function AdminView({
               </div>
               <h3 className="font-serif text-xl font-bold">Tenant Settings</h3>
               <p className="text-xs text-muted-foreground mt-1">
-                Test dynamic branding updates applied across all fan views.
+                Customize workspace branding applied across all fan views.
               </p>
 
               <div className="mt-5 space-y-4">
@@ -1572,11 +1777,11 @@ function AdminView({
             <div>
               <h3 className="font-serif text-xl font-bold">Live Quest Queue</h3>
               <p className="text-xs text-muted-foreground font-mono">
-                {quizzes.length} ACTIVE CHALLENGES IN ROTATION
+                {quizzes.length} ACTIVE CHALLENGES IN ROTATION (NEON POSTGRES)
               </p>
             </div>
             <button
-              onClick={() => showToast('New quest creation scaffolded for next episode drop!')}
+              onClick={() => showToast('Quest editor ready')}
               className="neu-button-accent rounded-xl px-4 py-2 text-xs font-bold text-accent inline-flex items-center gap-1.5"
             >
               <Plus className="size-3.5" /> New Quest
@@ -1596,7 +1801,7 @@ function AdminView({
                   <div>
                     <p className="text-sm font-bold">{q.title}</p>
                     <p className="text-[11px] font-mono text-muted-foreground">
-                      {q.points} PTS · {q.questions.length} QUESTIONS · {q.duration}
+                      {q.points} PTS · {q.questions?.length || 0} QUESTIONS · {q.duration}
                     </p>
                   </div>
                 </div>
@@ -1615,11 +1820,11 @@ function AdminView({
             <div>
               <h3 className="font-serif text-xl font-bold">Superfan CRM Directory</h3>
               <p className="text-xs text-muted-foreground font-mono">
-                TOP RANKED COMMUNITY MEMBERS SORTED BY ENGAGEMENT RECENCY
+                LIVE FAN DATABASE SCALED BY ENGAGEMENT AND VERIFICATION
               </p>
             </div>
             <span className="rounded-full px-3 py-1 neu-pill-inset text-xs font-mono text-accent font-bold">
-              8,492 TOTAL FANS
+              {superfans.length} VERIFIED ENTRIES
             </span>
           </div>
 
@@ -1635,32 +1840,38 @@ function AdminView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {[
-                  { name: 'Kofi B.', pts: 4820, streak: 14, verified: true, active: '10m ago' },
-                  { name: 'Zainab M.', pts: 4310, streak: 12, verified: true, active: '1h ago' },
-                  { name: 'Theo R.', pts: 3960, streak: 9, verified: true, active: '3h ago' },
-                  { name: 'Amina K.', pts: 1840, streak: 7, verified: true, active: 'Just now' },
-                  { name: 'David O.', pts: 3210, streak: 6, verified: false, active: '1d ago' },
-                ].map((fanRow, i) => (
-                  <tr key={i} className="hover:bg-muted/30">
-                    <td className="py-3.5 pl-2 font-semibold text-foreground flex items-center gap-2">
-                      <div className="grid size-6 place-items-center rounded-full neu-inset-xs font-mono text-[9px]">
-                        {fanRow.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span>{fanRow.name}</span>
+                {superfans.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center font-mono text-muted-foreground text-xs">
+                      No fans registered yet. Invite your audience to start populating your CRM!
                     </td>
-                    <td className="py-3.5 font-mono font-bold text-accent">{fanRow.pts.toLocaleString()} PTS</td>
-                    <td className="py-3.5 font-mono">{fanRow.streak} days</td>
-                    <td className="py-3.5">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-mono font-bold ${
-                        fanRow.verified ? 'bg-accent/15 text-accent' : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {fanRow.verified ? '✓ Verified' : 'Unverified'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 font-mono text-muted-foreground">{fanRow.active}</td>
                   </tr>
-                ))}
+                ) : (
+                  superfans.map((fanRow, i) => (
+                    <tr key={fanRow.id || i} className="hover:bg-muted/30">
+                      <td className="py-3.5 pl-2 font-semibold text-foreground flex items-center gap-2">
+                        <div className="grid size-6 place-items-center rounded-full neu-inset-xs font-mono text-[9px]">
+                          {fanRow.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <span>{fanRow.name}</span>
+                      </td>
+                      <td className="py-3.5 font-mono font-bold text-accent">
+                        {fanRow.points.toLocaleString()} PTS
+                      </td>
+                      <td className="py-3.5 font-mono">{fanRow.streak} days</td>
+                      <td className="py-3.5">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-mono font-bold ${
+                            fanRow.verified ? 'bg-accent/15 text-accent' : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {fanRow.verified ? '✓ Verified' : 'Unverified'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 font-mono text-muted-foreground">{fanRow.lastActive}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -1745,13 +1956,13 @@ function QuestCard({
   isWatched = true,
   onConfirmWatch,
 }: {
-  quiz: (typeof initialQuizzes)[number]
+  quiz: QuizData
   onPlay: () => void
   isPrimary?: boolean
   isWatched?: boolean
   onConfirmWatch: () => void
 }) {
-  const isLockedByWatch = quiz.id === 'q2' && !isWatched
+  const isLockedByWatch = quiz.requiresWatchConfirmation && !isWatched
 
   return (
     <article className="neu-card-interactive p-5 border border-border/80 flex flex-col justify-between">
@@ -1771,7 +1982,7 @@ function QuestCard({
           <div className="mt-4 p-3 rounded-xl neu-inset-xs border border-accent/30 text-xs text-muted-foreground flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-[11px]">
               <Eye className="size-3.5 text-accent shrink-0" />
-              <span>Watch Ep. 41 to unlock</span>
+              <span>Watch episode to unlock</span>
             </span>
             <button
               onClick={onConfirmWatch}

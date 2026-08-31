@@ -17,6 +17,7 @@ enum RewardProgramType {
   weekly
   monthly
   annual
+  milestone
   custom
 }
 
