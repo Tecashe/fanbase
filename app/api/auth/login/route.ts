@@ -5,21 +5,28 @@ import { verifyPassword, createSession, AUTH_COOKIE_NAME } from '@/lib/custom-au
 
 export async function POST(request: Request) {
   try {
-    const { email, password, creatorSlug } = await request.json()
+    const { email, phone, identifier, password, creatorSlug } = await request.json()
 
-    if (!email || !password) {
+    const rawTarget = identifier || phone || email
+    if (!rawTarget || !password) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Email or phone number, and password are required' },
         { status: 400 },
       )
     }
+
+    const normalizedTarget = rawTarget.trim().toLowerCase()
+    const isEmail = normalizedTarget.includes('@')
+    const cleanPhone = normalizedTarget.replace(/\s+/g, '')
 
     let user = null
     let token = 'mock-session-token'
 
     if (process.env.DATABASE_URL) {
-      user = await prisma.user.findUnique({
-        where: { email: email.toLowerCase().trim() },
+      user = await prisma.user.findFirst({
+        where: isEmail
+          ? { email: normalizedTarget }
+          : { phone: cleanPhone },
         include: {
           links: {
             include: {
@@ -31,7 +38,7 @@ export async function POST(request: Request) {
 
       if (!user || !user.passwordHash) {
         return NextResponse.json(
-          { error: 'Invalid email or password' },
+          { error: `Invalid ${isEmail ? 'email' : 'phone number'} or password` },
           { status: 401 },
         )
       }
@@ -39,7 +46,7 @@ export async function POST(request: Request) {
       const isValid = verifyPassword(password, user.passwordHash)
       if (!isValid) {
         return NextResponse.json(
-          { error: 'Invalid email or password' },
+          { error: `Invalid ${isEmail ? 'email' : 'phone number'} or password` },
           { status: 401 },
         )
       }
@@ -82,8 +89,9 @@ export async function POST(request: Request) {
     } else {
       user = {
         id: 'user_' + Date.now(),
-        email: email.toLowerCase().trim(),
-        displayName: email.split('@')[0],
+        email: isEmail ? normalizedTarget : null,
+        phone: !isEmail ? cleanPhone : null,
+        displayName: 'Fan',
         role: 'user',
         links: [],
       }
@@ -105,6 +113,7 @@ export async function POST(request: Request) {
       user: {
         id: user.id,
         email: user.email,
+        phone: user.phone,
         displayName: user.displayName,
       },
     })

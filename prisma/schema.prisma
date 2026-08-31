@@ -91,12 +91,14 @@ model Creator {
 
 model User {
   id            String            @id @default(cuid())
-  email         String            @unique
+  email         String?           @unique
+  phone         String?           @unique
   passwordHash  String?
   displayName   String?
   avatarUrl     String?
   role          UserRole          @default(user)
   emailVerified Boolean           @default(false)
+  phoneVerified Boolean           @default(false)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -125,12 +127,12 @@ model Session {
 
 model VerificationCode {
   id        String   @id @default(cuid())
-  email     String
+  identifier String  // email or phone number
   code      String
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  @@index([email])
+  @@index([identifier])
 }
 
 model UserCreatorLink {

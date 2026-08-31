@@ -5,20 +5,23 @@ import { hashPassword, createSession, AUTH_COOKIE_NAME } from '@/lib/custom-auth
 
 export async function POST(request: Request) {
   try {
-    const { email, password, displayName, creatorSlug, referrerId } = await request.json()
+    const { email, phone, identifier, password, displayName, creatorSlug, referrerId } = await request.json()
 
-    if (!email || !password) {
+    const rawTarget = identifier || phone || email
+    if (!rawTarget || !password) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Email or phone number, and password are required' },
         { status: 400 },
       )
     }
 
-    const normalizedEmail = email.toLowerCase().trim()
+    const normalizedTarget = rawTarget.trim().toLowerCase()
+    const isEmail = normalizedTarget.includes('@')
+    const cleanPhone = normalizedTarget.replace(/\s+/g, '')
 
-    if (!normalizedEmail.includes('@') || normalizedEmail.length < 5) {
+    if (!isEmail && cleanPhone.length < 9) {
       return NextResponse.json(
-        { error: 'Please enter a valid email address' },
+        { error: 'Please enter a valid phone number (e.g. +254 712 345 678)' },
         { status: 400 },
       )
     }
@@ -34,14 +37,16 @@ export async function POST(request: Request) {
     let token = 'session-token'
 
     if (process.env.DATABASE_URL) {
-      // 1. Strict duplicate credentials check
-      const existing = await prisma.user.findUnique({
-        where: { email: normalizedEmail },
+      // 1. Strict duplicate credentials check (both email and phone)
+      const existing = await prisma.user.findFirst({
+        where: isEmail
+          ? { email: normalizedTarget }
+          : { phone: cleanPhone },
       })
 
       if (existing) {
         return NextResponse.json(
-          { error: 'An account with this email address already exists. Please sign in instead.' },
+          { error: `An account with this ${isEmail ? 'email address' : 'phone number'} already exists. Please sign in instead.` },
           { status: 409 },
         )
       }
@@ -50,11 +55,13 @@ export async function POST(request: Request) {
       const passwordHash = hashPassword(password)
       user = await prisma.user.create({
         data: {
-          email: normalizedEmail,
+          email: isEmail ? normalizedTarget : null,
+          phone: !isEmail ? cleanPhone : null,
           passwordHash,
-          displayName: displayName?.trim() || normalizedEmail.split('@')[0],
+          displayName: displayName?.trim() || (isEmail ? normalizedTarget.split('@')[0] : `Fan-${cleanPhone.slice(-4)}`),
           role: 'user',
-          emailVerified: true,
+          emailVerified: isEmail,
+          phoneVerified: !isEmail,
         },
       })
 
@@ -65,22 +72,25 @@ export async function POST(request: Request) {
       })
 
       if (creator) {
-        let initialPoints = 100 // Standard welcome bonus
+        let initialPoints = 100
 
         // 4. Handle Referral Attribution
         let validReferrer = null
         if (referrerId) {
           validReferrer = await prisma.user.findFirst({
             where: {
-              OR: [{ id: referrerId }, { email: referrerId.toLowerCase().trim() }],
+              OR: [
+                { id: referrerId },
+                { email: referrerId.toLowerCase().trim() },
+                { phone: referrerId.replace(/\s+/g, '') },
+              ],
             },
           })
         }
 
         if (validReferrer && validReferrer.id !== user.id) {
-          initialPoints += 100 // +100 bonus for joining with invite
+          initialPoints += 100 // +100 invite bonus
 
-          // Award 100 bonus points to referrer
           await prisma.userCreatorLink.upsert({
             where: {
               userId_creatorId: {
@@ -99,7 +109,6 @@ export async function POST(request: Request) {
             },
           })
 
-          // Record referral in database
           await prisma.referral.create({
             data: {
               creatorId: creator.id,
@@ -121,18 +130,17 @@ export async function POST(request: Request) {
         })
       }
 
-      // 5. Create persistent session in Neon Postgres
       token = await createSession(user.id)
     } else {
       user = {
         id: 'user_' + Date.now(),
-        email: normalizedEmail,
-        displayName: displayName || normalizedEmail.split('@')[0],
+        email: isEmail ? normalizedTarget : null,
+        phone: !isEmail ? cleanPhone : null,
+        displayName: displayName || 'Fan',
         role: 'user',
       }
     }
 
-    // Set secure HTTP-only cookie
     const cookieStore = await cookies()
     cookieStore.set({
       name: AUTH_COOKIE_NAME,
@@ -149,6 +157,7 @@ export async function POST(request: Request) {
       user: {
         id: user.id,
         email: user.email,
+        phone: user.phone,
         displayName: user.displayName,
       },
     })

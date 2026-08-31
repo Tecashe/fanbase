@@ -3,7 +3,19 @@
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowRight, Flame, KeyRound, Lock, Mail, RefreshCw, Sparkles, User, Video, X } from 'lucide-react'
+import {
+  ArrowRight,
+  Flame,
+  KeyRound,
+  Lock,
+  Mail,
+  Phone,
+  RefreshCw,
+  Sparkles,
+  User,
+  Video,
+  X,
+} from 'lucide-react'
 
 function LoginForm() {
   const router = useRouter()
@@ -11,8 +23,9 @@ function LoginForm() {
   const redirectPath = searchParams.get('redirect') || '/app'
   const creatorSlug = searchParams.get('creator') || 'mkurugenzi'
 
+  const [inputMode, setInputMode] = useState<'email' | 'phone'>('email')
   const [authMethod, setAuthMethod] = useState<'password' | 'code'>('password')
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [verificationCode, setVerificationCode] = useState('')
   const [codeSent, setCodeSent] = useState(false)
@@ -30,7 +43,9 @@ function LoginForm() {
     setGoogleLoading(true)
     try {
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
-      const res = await fetch(`/api/auth/youtube/url?creatorSlug=${creatorSlug}&origin=${encodeURIComponent(origin)}`)
+      const res = await fetch(
+        `/api/auth/youtube/url?creatorSlug=${creatorSlug}&origin=${encodeURIComponent(origin)}`,
+      )
       const data = await res.json()
       if (data.url) {
         window.location.href = data.url
@@ -44,8 +59,8 @@ function LoginForm() {
   }
 
   const handleSendCode = async () => {
-    if (!email || !email.includes('@')) {
-      setError('Please enter a valid email address first.')
+    if (!identifier.trim()) {
+      setError(`Please enter your ${inputMode === 'email' ? 'email' : 'phone number'} first.`)
       return
     }
 
@@ -56,14 +71,14 @@ function LoginForm() {
       const res = await fetch('/api/auth/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ identifier }),
       })
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to send code')
 
       setCodeSent(true)
-      showToast(data.message || 'Verification code sent to your email!')
+      showToast(data.message || 'Verification code generated!')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to send code')
     } finally {
@@ -81,7 +96,7 @@ function LoginForm() {
         const res = await fetch('/api/auth/verify-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, code: verificationCode, creatorSlug }),
+          body: JSON.stringify({ identifier, code: verificationCode, creatorSlug }),
         })
 
         const data = await res.json()
@@ -96,11 +111,11 @@ function LoginForm() {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, creatorSlug }),
+          body: JSON.stringify({ identifier, password, creatorSlug }),
         })
 
         const data = await res.json()
-        if (!res.ok) throw new Error(data.error || 'Invalid email or password')
+        if (!res.ok) throw new Error(data.error || 'Invalid credentials')
 
         showToast('Login successful. Redirecting to dashboard...')
         setTimeout(() => {
@@ -149,8 +164,40 @@ function LoginForm() {
           <div className="w-full border-t border-border/60" />
         </div>
         <span className="relative bg-card px-3 text-[10px] font-mono uppercase text-muted-foreground">
-          or sign in with email
+          or sign in with credentials
         </span>
+      </div>
+
+      {/* Input Mode Selector (Email vs Phone) */}
+      <div className="flex items-center justify-center gap-4 mb-4 text-xs font-mono">
+        <button
+          type="button"
+          onClick={() => {
+            setInputMode('email')
+            setIdentifier('')
+          }}
+          className={`flex items-center gap-1.5 pb-1 border-b-2 font-bold transition-all ${
+            inputMode === 'email'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Mail className="size-3.5" /> Email
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setInputMode('phone')
+            setIdentifier('')
+          }}
+          className={`flex items-center gap-1.5 pb-1 border-b-2 font-bold transition-all ${
+            inputMode === 'phone'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Phone className="size-3.5" /> Phone Number (M-Pesa)
+        </button>
       </div>
 
       <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl neu-inset-xs border border-border/60 bg-background/60 mb-6">
@@ -180,7 +227,7 @@ function LoginForm() {
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          6-Digit Code Login
+          6-Digit Code OTP
         </button>
       </div>
 
@@ -193,16 +240,20 @@ function LoginForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1.5">
-            Email Address
+            {inputMode === 'email' ? 'Email Address' : 'Phone Number'}
           </label>
           <div className="relative">
-            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            {inputMode === 'email' ? (
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            ) : (
+              <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            )}
             <input
-              type="email"
+              type={inputMode === 'email' ? 'email' : 'tel'}
               required
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder={inputMode === 'email' ? 'you@example.com' : '+254 712 345 678'}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium"
             />
           </div>
@@ -237,7 +288,7 @@ function LoginForm() {
                 disabled={loading}
                 className="text-[10px] font-mono text-accent font-bold hover:underline"
               >
-                {codeSent ? 'Resend Code' : 'Send Code to Email'}
+                {codeSent ? 'Resend Code' : `Send Code to ${inputMode === 'email' ? 'Email' : 'Phone'}`}
               </button>
             </div>
             <div className="relative">
@@ -252,11 +303,6 @@ function LoginForm() {
                 className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-mono font-bold tracking-widest text-center"
               />
             </div>
-            {!codeSent && (
-              <p className="text-[10px] font-mono text-muted-foreground mt-1.5">
-                Click "Send Code to Email" above to receive your one-time verification token.
-              </p>
-            )}
           </div>
         )}
 

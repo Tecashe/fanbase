@@ -5,18 +5,22 @@ import { createSession, AUTH_COOKIE_NAME } from '@/lib/custom-auth'
 
 export async function POST(request: Request) {
   try {
-    const { email, code, creatorSlug = 'mkurugenzi' } = await request.json()
+    const { email, phone, identifier, code, creatorSlug = 'mkurugenzi' } = await request.json()
 
-    if (!email || !code) {
-      return NextResponse.json({ error: 'Email and verification code are required' }, { status: 400 })
+    const rawTarget = identifier || phone || email
+    if (!rawTarget || !code) {
+      return NextResponse.json({ error: 'Identifier (email/phone) and 6-digit code are required' }, { status: 400 })
     }
 
-    const normalizedEmail = email.toLowerCase().trim()
+    const normalizedTarget = rawTarget.trim().toLowerCase()
+    const isEmail = normalizedTarget.includes('@')
+    const cleanPhone = normalizedTarget.replace(/\s+/g, '')
+    const finalIdentifier = isEmail ? normalizedTarget : cleanPhone
 
     if (process.env.DATABASE_URL) {
       const record = await prisma.verificationCode.findFirst({
         where: {
-          email: normalizedEmail,
+          identifier: finalIdentifier,
           code: code.trim(),
           expiresAt: { gt: new Date() },
         },
@@ -29,21 +33,23 @@ export async function POST(request: Request) {
         )
       }
 
-      // Check if user already exists
-      let user = await prisma.user.findUnique({
-        where: { email: normalizedEmail },
+      // Find existing user by email or phone
+      let user = await prisma.user.findFirst({
+        where: isEmail
+          ? { email: finalIdentifier }
+          : { phone: finalIdentifier },
       })
 
       if (user) {
         // Mark user verified
         await prisma.user.update({
           where: { id: user.id },
-          data: { emailVerified: true },
+          data: isEmail ? { emailVerified: true } : { phoneVerified: true },
         })
 
         // Delete used code
         await prisma.verificationCode.deleteMany({
-          where: { email: normalizedEmail },
+          where: { identifier: finalIdentifier },
         })
 
         // Ensure linked to creator
@@ -70,7 +76,7 @@ export async function POST(request: Request) {
           })
         }
 
-        // Establish secure session cookie
+        // Establish session cookie
         const token = await createSession(user.id)
         const cookieStore = await cookies()
         cookieStore.set({
@@ -89,12 +95,13 @@ export async function POST(request: Request) {
           user: {
             id: user.id,
             email: user.email,
+            phone: user.phone,
             displayName: user.displayName,
           },
         })
       }
 
-      // If user not registered yet, confirm the code is valid so registration form can complete
+      // If user is registering new account, indicate code is valid so registration form can submit
       return NextResponse.json({
         success: true,
         verified: true,
@@ -102,10 +109,7 @@ export async function POST(request: Request) {
       })
     }
 
-    return NextResponse.json({
-      success: true,
-      verified: true,
-    })
+    return NextResponse.json({ success: true, verified: true })
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'Verification failed'
     return NextResponse.json({ error: errorMsg }, { status: 500 })

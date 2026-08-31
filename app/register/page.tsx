@@ -3,7 +3,19 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowRight, Flame, KeyRound, Lock, Mail, RefreshCw, Sparkles, User, Video, X } from 'lucide-react'
+import {
+  ArrowRight,
+  Flame,
+  KeyRound,
+  Lock,
+  Mail,
+  Phone,
+  RefreshCw,
+  Sparkles,
+  User,
+  Video,
+  X,
+} from 'lucide-react'
 
 function RegisterForm() {
   const router = useRouter()
@@ -12,9 +24,10 @@ function RegisterForm() {
   const creatorSlug = searchParams.get('creator') || 'mkurugenzi'
   const refCode = searchParams.get('ref')
 
+  const [inputMode, setInputMode] = useState<'email' | 'phone'>('email')
   const [step, setStep] = useState<'details' | 'verify'>('details')
   const [displayName, setDisplayName] = useState('')
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [referrerId, setReferrerId] = useState(refCode || '')
   const [verificationCode, setVerificationCode] = useState('')
@@ -40,7 +53,9 @@ function RegisterForm() {
     setGoogleLoading(true)
     try {
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
-      const res = await fetch(`/api/auth/youtube/url?creatorSlug=${creatorSlug}&origin=${encodeURIComponent(origin)}`)
+      const res = await fetch(
+        `/api/auth/youtube/url?creatorSlug=${creatorSlug}&origin=${encodeURIComponent(origin)}`,
+      )
       const data = await res.json()
       if (data.url) {
         window.location.href = data.url
@@ -63,10 +78,14 @@ function RegisterForm() {
         throw new Error('Password must be at least 6 characters')
       }
 
+      if (!identifier.trim()) {
+        throw new Error(`Please enter your ${inputMode === 'email' ? 'email' : 'phone number'}`)
+      }
+
       const res = await fetch('/api/auth/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ identifier }),
       })
 
       const data = await res.json()
@@ -77,7 +96,7 @@ function RegisterForm() {
       }
 
       setStep('verify')
-      showToast('Verification code sent to your email!')
+      showToast(`Verification code sent to your ${inputMode === 'email' ? 'email' : 'phone'}!`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration error')
     } finally {
@@ -94,7 +113,7 @@ function RegisterForm() {
       const verifyRes = await fetch('/api/auth/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: verificationCode, creatorSlug }),
+        body: JSON.stringify({ identifier, code: verificationCode, creatorSlug }),
       })
 
       const verifyData = await verifyRes.json()
@@ -105,7 +124,7 @@ function RegisterForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           displayName,
-          email,
+          identifier,
           password,
           creatorSlug,
           referrerId,
@@ -140,12 +159,12 @@ function RegisterForm() {
 
       <div className="text-center mb-6">
         <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight">
-          {step === 'details' ? 'Create Your Account' : 'Verify Your Email'}
+          {step === 'details' ? 'Create Your Account' : 'Verify Your Code'}
         </h1>
         <p className="text-xs font-mono text-muted-foreground mt-1">
           {step === 'details'
             ? 'Join the campfire, play episode recall quests, and climb the ranks'
-            : `Enter the 6-digit code sent to ${email}`}
+            : `Enter the 6-digit code sent to ${identifier}`}
         </p>
       </div>
 
@@ -174,8 +193,40 @@ function RegisterForm() {
               <div className="w-full border-t border-border/60" />
             </div>
             <span className="relative bg-card px-3 text-[10px] font-mono uppercase text-muted-foreground">
-              or register with email
+              or register with credentials
             </span>
+          </div>
+
+          {/* Mode Selector */}
+          <div className="flex items-center justify-center gap-4 mb-4 text-xs font-mono">
+            <button
+              type="button"
+              onClick={() => {
+                setInputMode('email')
+                setIdentifier('')
+              }}
+              className={`flex items-center gap-1.5 pb-1 border-b-2 font-bold transition-all ${
+                inputMode === 'email'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Mail className="size-3.5" /> Email
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setInputMode('phone')
+                setIdentifier('')
+              }}
+              className={`flex items-center gap-1.5 pb-1 border-b-2 font-bold transition-all ${
+                inputMode === 'phone'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Phone className="size-3.5" /> Phone Number (M-Pesa)
+            </button>
           </div>
         </>
       )}
@@ -207,16 +258,20 @@ function RegisterForm() {
 
           <div>
             <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1.5">
-              Email Address
+              {inputMode === 'email' ? 'Email Address' : 'Phone Number'}
             </label>
             <div className="relative">
-              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              {inputMode === 'email' ? (
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              ) : (
+                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              )}
               <input
-                type="email"
+                type={inputMode === 'email' ? 'email' : 'tel'}
                 required
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder={inputMode === 'email' ? 'you@example.com' : '+254 712 345 678'}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium"
               />
             </div>
