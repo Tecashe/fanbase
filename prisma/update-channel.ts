@@ -7,13 +7,13 @@ async function updateCreator() {
     const creator = await prisma.creator.upsert({
       where: { slug: 'mkurugenzi' },
       update: {
-        youtubeChannelId: 'UCUgsdMs1PqV9lKItnP0UxyQ',
+        youtubeChannelId: 'UC4tjY2tTltEKePusozUxtSA',
         displayName: 'Mkurugenzi',
       },
       create: {
         slug: 'mkurugenzi',
         displayName: 'Mkurugenzi',
-        youtubeChannelId: 'UCUgsdMs1PqV9lKItnP0UxyQ',
+        youtubeChannelId: 'UC4tjY2tTltEKePusozUxtSA',
         brandPrimaryColor: '#d11149',
         brandSecondaryColor: '#0a0a0d',
         welcomeMessage: 'Welcome to the campfire. Answer questions from our stories, climb the ranks, and unlock rewards.',
@@ -22,9 +22,9 @@ async function updateCreator() {
         planTier: 'creator_pro',
       },
     })
-    console.log('Successfully updated creator in Neon database:', creator)
+    console.log('Successfully updated creator to exact channel ID in Neon DB:', creator)
   } catch (e) {
-    console.error('Error updating creator in database:', e)
+    console.error('Error updating creator:', e)
   } finally {
     await prisma.$disconnect()
   }

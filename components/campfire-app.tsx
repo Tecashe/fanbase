@@ -176,7 +176,7 @@ export default function CampfireApp({
     welcomeMessage:
       initialCreator?.welcomeMessage ||
       'Welcome to the campfire. Answer questions from our stories, climb the ranks, and unlock rewards.',
-    youtubeChannelId: 'UCUgsdMs1PqV9lKItnP0UxyQ',
+    youtubeChannelId: 'UC4tjY2tTltEKePusozUxtSA',
     channelUrl: 'https://www.youtube.com/@Mkurugenziii',
     stats: { totalFans: 0, totalQuizzes: 0 },
   })

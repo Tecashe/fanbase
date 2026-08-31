@@ -52,11 +52,11 @@ export async function getGoogleUserProfile(accessToken: string): Promise<{
 
 /**
  * Strictly verifies if user is subscribed to creator's YouTube channel via YouTube Data API v3.
- * Target Channel: https://www.youtube.com/@Mkurugenziii (Channel ID: UCUgsdMs1PqV9lKItnP0UxyQ)
+ * Target Channel: https://www.youtube.com/@Mkurugenziii (Channel ID: UC4tjY2tTltEKePusozUxtSA)
  */
 export async function verifyYouTubeSubscription({
   accessToken,
-  creatorChannelId = 'UCUgsdMs1PqV9lKItnP0UxyQ',
+  creatorChannelId = 'UC4tjY2tTltEKePusozUxtSA',
 }: {
   accessToken: string
   creatorChannelId?: string
@@ -66,7 +66,7 @@ export async function verifyYouTubeSubscription({
   quotaExceeded?: boolean
   error?: string
 }> {
-  const targetChannelId = creatorChannelId || 'UCUgsdMs1PqV9lKItnP0UxyQ'
+  const targetChannelId = creatorChannelId || 'UC4tjY2tTltEKePusozUxtSA'
 
   if (!accessToken || accessToken.startsWith('mock-')) {
     console.warn('[YouTube API Strict] No valid access token, verification is FALSE.')
@@ -77,7 +77,7 @@ export async function verifyYouTubeSubscription({
   }
 
   try {
-    console.log(`[YouTube API Strict] Querying subscriptions for channel: ${targetChannelId}...`)
+    console.log(`[YouTube API Strict] Querying subscriptions for @Mkurugenziii (channel: ${targetChannelId})...`)
 
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&forChannelId=${targetChannelId}`,
@@ -116,7 +116,7 @@ export async function verifyYouTubeSubscription({
 
     const data = await res.json()
     const isSubscribed = Array.isArray(data.items) && data.items.length > 0
-    console.log(`[YouTube API Strict] Subscribed to ${targetChannelId}?`, isSubscribed)
+    console.log(`[YouTube API Strict] Subscribed to ${targetChannelId} (@Mkurugenziii)?`, isSubscribed)
 
     return {
       verified: isSubscribed,
