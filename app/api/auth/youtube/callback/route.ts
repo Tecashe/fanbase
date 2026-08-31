@@ -18,7 +18,7 @@ export async function GET(request: Request) {
         if (parsed.creatorSlug) creatorSlug = parsed.creatorSlug
         if (parsed.origin) appOrigin = parsed.origin
       } catch {
-        // use default
+        // fallback
       }
     }
 
@@ -44,8 +44,6 @@ export async function GET(request: Request) {
       if (tokenRes.ok) {
         const tokenData = await tokenRes.json()
         accessToken = tokenData.access_token
-
-        // Fetch user profile from Google
         googleProfile = await getGoogleUserProfile(accessToken)
       } else {
         const errText = await tokenRes.text()
@@ -53,17 +51,18 @@ export async function GET(request: Request) {
       }
     }
 
+    let isSubscribed = false
+
     if (process.env.DATABASE_URL) {
-      // 2. If user is not logged in, authenticate or register them via Google Profile
+      // 2. Register or Login user via Google profile
       if (!authUser && googleProfile?.email) {
         const normalizedEmail = googleProfile.email.toLowerCase().trim()
-        
+
         let user = await prisma.user.findUnique({
           where: { email: normalizedEmail },
         })
 
         if (!user) {
-          // Register new user via Google
           user = await prisma.user.create({
             data: {
               email: normalizedEmail,
@@ -77,11 +76,10 @@ export async function GET(request: Request) {
 
         authUser = {
           id: user.id,
-          email: user.email,
-          displayName: user.displayName,
+          email: user.email || normalizedEmail,
+          displayName: user.displayName || 'Fan',
         }
 
-        // Establish session cookie
         const token = await createSession(user.id)
         const cookieStore = await cookies()
         cookieStore.set({
@@ -95,7 +93,7 @@ export async function GET(request: Request) {
         })
       }
 
-      // 3. Link to creator and check YouTube Subscription
+      // 3. Verify YouTube subscription against creator channel
       if (authUser) {
         const creator = await prisma.creator.findUnique({
           where: { slug: creatorSlug },
@@ -104,11 +102,12 @@ export async function GET(request: Request) {
         if (creator) {
           const verification = await verifyYouTubeSubscription({
             accessToken,
-            creatorChannelId: creator.youtubeChannelId || 'UC_example',
+            creatorChannelId: creator.youtubeChannelId || 'UC_mkurugenzi_official',
           })
 
+          isSubscribed = verification.verified
           const expiresAt = new Date()
-          expiresAt.setDate(expiresAt.getDate() + 30) // 30-day verification validity
+          expiresAt.setDate(expiresAt.getDate() + 30) // 30-day validity
 
           await prisma.userCreatorLink.upsert({
             where: {
@@ -118,19 +117,19 @@ export async function GET(request: Request) {
               },
             },
             update: {
-              youtubeSubscriptionVerified: verification.verified,
-              youtubeVerifiedAt: verification.verified ? new Date() : null,
+              youtubeSubscriptionVerified: isSubscribed,
+              youtubeVerifiedAt: isSubscribed ? new Date() : null,
               subscriptionCheckExpiresAt: expiresAt,
-              pointsBalance: verification.verified ? { increment: 150 } : undefined,
+              pointsBalance: isSubscribed ? { increment: 150 } : undefined,
               lastActiveAt: new Date(),
             },
             create: {
               userId: authUser.id,
               creatorId: creator.id,
-              youtubeSubscriptionVerified: verification.verified,
-              youtubeVerifiedAt: verification.verified ? new Date() : null,
+              youtubeSubscriptionVerified: isSubscribed,
+              youtubeVerifiedAt: isSubscribed ? new Date() : null,
               subscriptionCheckExpiresAt: expiresAt,
-              pointsBalance: verification.verified ? 250 : 100,
+              pointsBalance: isSubscribed ? 250 : 100,
               currentStreak: 1,
               longestStreak: 1,
             },
@@ -139,7 +138,8 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.redirect(`${appOrigin}/app?youtube_auth=success`)
+    const redirectStatus = isSubscribed ? 'subscribed' : 'unsubscribed'
+    return NextResponse.redirect(`${appOrigin}/app?youtube_status=${redirectStatus}`)
   } catch (err: unknown) {
     console.error('[YouTube Callback Error]', err)
     return NextResponse.redirect(new URL('/login?error=youtube_auth_failed', request.url))

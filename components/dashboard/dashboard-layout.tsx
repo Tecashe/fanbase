@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
+  AlertCircle,
   Award,
   Banknote,
   BarChart3,
+  Bell,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -32,8 +34,10 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Search,
   Send,
   Share2,
+  ShieldAlert,
   Sparkles,
   Star,
   Sun,
@@ -73,14 +77,46 @@ export default function DashboardLayout({
   initialView?: View
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const youtubeStatusParam = searchParams.get('youtube_status')
+
   const [view, setView] = useState<View>(initialView)
   const [isDark, setIsDark] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [authChecking, setAuthChecking] = useState(true)
 
+  // Top Navbar Notification Dropdown State
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [notifications, setNotifications] = useState([
+    {
+      id: 'n1',
+      title: 'Weekly Cash Prize Active',
+      message: 'KES 5,000 weekly grand cash prize is live for top ranking superfans.',
+      time: '1h ago',
+      read: false,
+      icon: Banknote,
+    },
+    {
+      id: 'n2',
+      title: 'New Episode Lore Quest',
+      message: 'Episode 42 challenge has been synthesized and added to rotation.',
+      time: '3h ago',
+      read: false,
+      icon: Zap,
+    },
+    {
+      id: 'n3',
+      title: 'YouTube Verification Gate',
+      message: 'Ensure your YouTube subscription is active to receive score multipliers.',
+      time: '1d ago',
+      read: true,
+      icon: Video,
+    },
+  ])
+
   // Authenticated user state
-  const [authUser, setAuthUser] = useState<{ id: string; email: string; displayName?: string } | null>(null)
+  const [authUser, setAuthUser] = useState<{ id: string; email?: string; phone?: string; displayName?: string } | null>(null)
   const [fanState, setFanState] = useState<FanState | null>(null)
 
   // Live Database States
@@ -139,6 +175,7 @@ export default function DashboardLayout({
   const [isYoutubeGateOpen, setIsYoutubeGateOpen] = useState(false)
   const [isAiGeneratorOpen, setIsAiGeneratorOpen] = useState(false)
   const [selectedCashReward, setSelectedCashReward] = useState<RewardData | null>(null)
+  const [unsubscribedAlert, setUnsubscribedAlert] = useState(false)
 
   // Gameplay state
   const [activeQuiz, setActiveQuiz] = useState<QuizData | null>(null)
@@ -174,7 +211,6 @@ export default function DashboardLayout({
           return
         }
       }
-      // Redirect to login if unauthenticated
       router.push(`/login?creator=${creator.slug}&redirect=/app`)
     } catch {
       router.push(`/login?creator=${creator.slug}&redirect=/app`)
@@ -221,6 +257,16 @@ export default function DashboardLayout({
     loadData()
   }, [creator.slug])
 
+  // Handle YouTube Auth Return Status
+  useEffect(() => {
+    if (youtubeStatusParam === 'subscribed') {
+      showToast('YouTube Verified! +150 Subscriber bonus points awarded.')
+    } else if (youtubeStatusParam === 'unsubscribed') {
+      setUnsubscribedAlert(true)
+      setIsYoutubeGateOpen(true)
+    }
+  }, [youtubeStatusParam])
+
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' })
@@ -228,6 +274,7 @@ export default function DashboardLayout({
     router.push('/login')
   }
 
+  // Strict Subscriber Gating for gameplay
   const handleStartQuiz = (quiz: QuizData) => {
     if (!fanState?.youtubeVerified) {
       setIsYoutubeGateOpen(true)
@@ -305,6 +352,7 @@ export default function DashboardLayout({
       } else if (data.verified) {
         verifyAuth()
         setIsYoutubeGateOpen(false)
+        setUnsubscribedAlert(false)
         showToast('YouTube subscription verified! +150 bonus points awarded.')
       } else {
         showToast(data.message || 'Subscription check complete.')
@@ -317,6 +365,11 @@ export default function DashboardLayout({
   }
 
   const handleRewardClick = (reward: RewardData) => {
+    if (!fanState?.youtubeVerified) {
+      setIsYoutubeGateOpen(true)
+      return
+    }
+
     if (reward.cashValue) {
       setSelectedCashReward(reward)
       return
@@ -359,7 +412,6 @@ export default function DashboardLayout({
     showToast('Invite link copied to clipboard.')
   }
 
-  // Loading skeleton while verifying authentication
   if (authChecking) {
     return (
       <div className="min-h-screen bg-background text-foreground grid place-items-center p-6 font-sans">
@@ -377,7 +429,7 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-background text-foreground flex transition-colors duration-300 font-sans selection:bg-accent/25">
-      {/* Toast Notification */}
+      {/* Toast Alert Notification */}
       {toastMessage && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="flex items-center gap-2.5 rounded-full px-5 py-2.5 neu-raised-lg border border-accent/30 bg-card text-foreground font-medium text-sm shadow-xl">
@@ -388,14 +440,13 @@ export default function DashboardLayout({
       )}
 
       {/* ═════════════════════════════════════════════════════════════════════
-          LEFT-SIDED SIDEBAR (Desktop: 260px Sticky | Mobile: Slide-out Drawer)
+          LEFT-SIDED SIDEBAR (Desktop: 260px Sticky | Mobile: Drawer)
           ═════════════════════════════════════════════════════════════════════ */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-64 border-r border-border/80 bg-background/95 backdrop-blur-2xl p-4 flex flex-col justify-between transition-transform duration-300 lg:translate-x-0 ${
           mobileSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
-        {/* Top: Brand Header */}
         <div>
           <div className="flex items-center justify-between pb-4 border-b border-border/60 mb-6">
             <Link href="/" className="flex items-center gap-3 group outline-none">
@@ -421,7 +472,6 @@ export default function DashboardLayout({
             </button>
           </div>
 
-          {/* Navigation Items */}
           <nav className="space-y-1.5">
             {sidebarNavItems.map((item) => {
               const isActive = view === item.id
@@ -452,9 +502,7 @@ export default function DashboardLayout({
           </nav>
         </div>
 
-        {/* Bottom: Theme Toggle & Authenticated User Card */}
         <div className="pt-4 border-t border-border/60 space-y-3">
-          {/* Theme Switcher */}
           <div className="flex items-center justify-between p-2 rounded-xl neu-inset-xs text-xs font-mono text-muted-foreground">
             <span className="text-[10px] uppercase font-bold pl-1">Theme</span>
             <button
@@ -466,7 +514,6 @@ export default function DashboardLayout({
             </button>
           </div>
 
-          {/* User Profile Card */}
           {fanState && (
             <div className="p-3 rounded-2xl neu-card border border-border/80 bg-card flex items-center justify-between">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -498,27 +545,125 @@ export default function DashboardLayout({
       </aside>
 
       {/* ═════════════════════════════════════════════════════════════════════
-          MAIN CONTENT AREA
-          ═════════════════════════════════════════════════════════════════════ */}
+          MAIN DASHBOARD AREA WITH COMMON TOP NAVBAR
+          ═════════════════════════════════════════════ */}
       <div className="flex-1 lg:pl-64 flex flex-col min-h-screen">
-        {/* Mobile Header Bar */}
-        <header className="sticky top-0 z-30 h-16 border-b border-border/80 bg-background/90 backdrop-blur-xl px-4 flex items-center justify-between lg:hidden">
-          <button
-            onClick={() => setMobileSidebarOpen(true)}
-            className="grid size-9 place-items-center rounded-xl neu-raised-sm border border-border text-foreground"
-          >
-            <Menu className="size-5" />
-          </button>
-          <div className="flex items-center gap-2">
-            <Flame className="size-5 text-accent" />
-            <span className="font-serif font-bold text-base">{creator.displayName}</span>
+        {/* COMMON TOP NAVBAR */}
+        <header className="sticky top-0 z-30 h-16 border-b border-border/80 bg-background/90 backdrop-blur-xl px-4 sm:px-8 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="grid size-9 place-items-center rounded-xl neu-raised-sm border border-border text-foreground lg:hidden"
+            >
+              <Menu className="size-5" />
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono uppercase text-muted-foreground hidden sm:inline">
+                Campfire /
+              </span>
+              <span className="font-serif font-bold text-sm sm:text-base capitalize">
+                {view.replace('-', ' ')}
+              </span>
+            </div>
           </div>
-          <div className="text-xs font-mono font-bold text-accent">
-            {fanState?.points.toLocaleString()} PTS
+
+          <div className="flex items-center gap-3">
+            {/* Live Day Streak Pill */}
+            <div className="hidden sm:flex items-center gap-1.5 rounded-full px-3 py-1 neu-pill-inset text-xs font-mono font-bold text-accent">
+              <Flame className="size-3.5 text-accent" />
+              <span>{fanState?.streak || 1}D Streak</span>
+            </div>
+
+            {/* Live Points Pill */}
+            <div className="flex items-center gap-1.5 rounded-full px-3 py-1 neu-pill text-xs font-mono font-bold text-foreground border border-border/80 bg-card">
+              <span className="ruby-dot animate-pulse" />
+              <span>{fanState?.points.toLocaleString()} PTS</span>
+            </div>
+
+            {/* YouTube Subscriber Status Badge */}
+            {fanState?.youtubeVerified ? (
+              <div className="hidden md:flex items-center gap-1.5 rounded-full px-3 py-1 neu-pill-inset text-[11px] font-mono font-bold text-accent">
+                <CheckCircle2 className="size-3.5 text-accent" />
+                <span>Verified Subscriber</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsYoutubeGateOpen(true)}
+                className="hidden md:flex items-center gap-1.5 rounded-full px-3 py-1 neu-button-accent text-[11px] font-mono font-bold text-accent"
+              >
+                <Video className="size-3.5" />
+                <span>Subscribe on YouTube</span>
+              </button>
+            )}
+
+            {/* Notifications Dropdown Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                className="relative grid size-9 place-items-center rounded-xl neu-raised-sm border border-border text-foreground/80 hover:text-accent transition-colors"
+                aria-label="View notifications"
+              >
+                <Bell className="size-4" />
+                <span className="absolute 1.5 top-1.5 right-1.5 size-2 rounded-full bg-accent ruby-glow" />
+              </button>
+
+              {isNotificationsOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 neu-card p-4 border border-border/90 bg-card shadow-2xl rounded-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between pb-3 border-b border-border/60 mb-3">
+                    <span className="font-serif font-bold text-sm">Notifications</span>
+                    <span className="text-[10px] font-mono text-accent font-bold">3 NEW</span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {notifications.map((n) => {
+                      const Icon = n.icon
+                      return (
+                        <div
+                          key={n.id}
+                          className="p-3 rounded-xl neu-inset-xs border border-border/60 text-left flex items-start gap-3"
+                        >
+                          <div className="grid size-7 place-items-center rounded-lg bg-card text-accent shrink-0 mt-0.5">
+                            <Icon className="size-3.5 text-accent" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-foreground leading-tight">{n.title}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                              {n.message}
+                            </p>
+                            <span className="text-[9px] font-mono text-muted-foreground/70 mt-1 block">
+                              {n.time}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
-        {/* Content Viewport */}
+        {/* Persistent Unsubscribed Warning Alert if Fan is Unverified */}
+        {!fanState?.youtubeVerified && (
+          <div className="bg-accent/10 border-b border-accent/30 px-4 sm:px-8 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono">
+            <div className="flex items-center gap-2 text-accent">
+              <ShieldAlert className="size-4 shrink-0 text-accent" />
+              <span>
+                <strong>Subscriber Gate Active:</strong> You must subscribe to{' '}
+                <strong>{creator.displayName}</strong> on YouTube to play quests & claim rewards.
+              </span>
+            </div>
+            <button
+              onClick={() => setIsYoutubeGateOpen(true)}
+              className="neu-button-primary rounded-lg px-3 py-1 text-[10px] font-bold uppercase tracking-wider shrink-0"
+            >
+              Verify YouTube Now
+            </button>
+          </div>
+        )}
+
+        {/* Main Content Viewport */}
         <main className="flex-1 p-4 sm:p-8 max-w-5xl w-full mx-auto space-y-10">
           {view === 'overview' && (
             <OverviewSection
@@ -540,7 +685,7 @@ export default function DashboardLayout({
               <PageHeader
                 eyebrow="Play to Earn"
                 title="Quests & Challenges"
-                description="Episode recall quests generated from video transcripts. Correct answers award points directly to your live balance."
+                description="Episode recall quests synthesized from video transcripts. Correct answers award points directly to your balance."
               />
               <div className="grid gap-5 md:grid-cols-3">
                 {quizzes.map((quiz, i) => (
@@ -703,14 +848,15 @@ export default function DashboardLayout({
                 <Video className="size-8 text-accent drop-shadow-[0_0_8px_rgba(209,17,73,0.5)]" />
               </div>
               <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 neu-pill-inset text-[10px] font-mono font-bold text-accent mb-2">
-                <Lock className="size-3" /> SUBSCRIBER-GATED QUESTS
+                <Lock className="size-3" /> SUBSCRIBER-GATED ACCESS
               </span>
               <h2 className="font-serif text-2xl font-bold tracking-tight">
-                Connect YouTube Subscription
+                {unsubscribedAlert ? 'Subscription Not Found' : 'Connect YouTube Subscription'}
               </h2>
               <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                To play verified quests and unlock rewards, verify that you subscribe to{' '}
-                <strong>{creator.displayName}</strong> on YouTube.
+                {unsubscribedAlert
+                  ? `Google verification showed you are not yet subscribed to ${creator.displayName} on YouTube. Please subscribe to unlock quests, climb rankings, and win prizes.`
+                  : `To participate in verified quests and claim rewards, verify that you subscribe to ${creator.displayName} on YouTube.`}
               </p>
 
               <div className="mt-6 flex flex-col gap-3">
@@ -720,7 +866,9 @@ export default function DashboardLayout({
                     setVerifyingYoutube(true)
                     try {
                       const origin = typeof window !== 'undefined' ? window.location.origin : ''
-                      const res = await fetch(`/api/auth/youtube/url?creatorSlug=${creator.slug}&origin=${encodeURIComponent(origin)}`)
+                      const res = await fetch(
+                        `/api/auth/youtube/url?creatorSlug=${creator.slug}&origin=${encodeURIComponent(origin)}`,
+                      )
                       const data = await res.json()
                       if (data.url) {
                         window.location.href = data.url
@@ -735,9 +883,11 @@ export default function DashboardLayout({
                   <Video className="size-4" />
                   <span>Verify with Google OAuth (Live)</span>
                 </button>
+
                 <div className="flex items-center justify-center gap-2 text-[10px] font-mono text-muted-foreground uppercase">
                   <span>or quick check</span>
                 </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   <a
                     href={creator.channelUrl}
@@ -746,7 +896,7 @@ export default function DashboardLayout({
                     className="neu-button-accent rounded-xl py-2.5 px-3 text-xs font-bold inline-flex items-center justify-center gap-1.5 text-accent text-center"
                   >
                     <ExternalLink className="size-3.5" />
-                    <span>1. Channel</span>
+                    <span>1. Open Channel</span>
                   </a>
                   <button
                     disabled={verifyingYoutube}
@@ -754,7 +904,7 @@ export default function DashboardLayout({
                     className="neu-button rounded-xl py-2.5 px-3 text-xs font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-50 text-center"
                   >
                     <RefreshCw className={`size-3.5 ${verifyingYoutube ? 'animate-spin' : ''}`} />
-                    <span>{verifyingYoutube ? 'Checking...' : '2. Fast Check'}</span>
+                    <span>{verifyingYoutube ? 'Checking...' : '2. Check Status'}</span>
                   </button>
                 </div>
               </div>
@@ -913,7 +1063,7 @@ export default function DashboardLayout({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   DASHBOARD SUB-VIEWS
+   SUB-VIEWS & COMPONENTS
    ═══════════════════════════════════════════════════════════════════════════ */
 
 function OverviewSection({
@@ -937,7 +1087,6 @@ function OverviewSection({
 }) {
   return (
     <div className="space-y-8">
-      {/* Welcome Banner */}
       <section className="neu-card p-6 sm:p-8 border border-border/80 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -964,7 +1113,6 @@ function OverviewSection({
         </div>
       </section>
 
-      {/* Stats Quad */}
       <section className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
         <StatCard
           label="Your Points"
@@ -989,7 +1137,6 @@ function OverviewSection({
         />
       </section>
 
-      {/* Active Quests Preview */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-serif text-2xl font-bold">Active Challenges</h3>

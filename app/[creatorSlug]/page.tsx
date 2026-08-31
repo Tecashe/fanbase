@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import DashboardLayout from '@/components/dashboard/dashboard-layout'
 import { prisma } from '@/lib/db'
 
@@ -28,5 +29,17 @@ export default async function CreatorPage({
   params: Promise<{ creatorSlug: string }>
 }) {
   const { creatorSlug } = await params
-  return <DashboardLayout creatorSlug={creatorSlug} />
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background text-foreground grid place-items-center p-6 font-sans">
+          <div className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
+            Loading {creatorSlug} Campfire...
+          </div>
+        </div>
+      }
+    >
+      <DashboardLayout creatorSlug={creatorSlug} />
+    </Suspense>
+  )
 }

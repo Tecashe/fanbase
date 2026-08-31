@@ -40,11 +40,24 @@ import {
 
 export default function LandingPage() {
   const [isDark, setIsDark] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
 
   // Interactive Live Demo state on landing page
   const [demoSelected, setDemoSelected] = useState<number | null>(null)
   const [demoSubmitted, setDemoSubmitted] = useState(false)
   const [faqOpen, setFaqOpen] = useState<number | null>(0)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 30) {
+        setScrolled(true)
+      } else {
+        setScrolled(false)
+      }
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   useEffect(() => {
     const root = document.documentElement
@@ -98,79 +111,90 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300 font-sans selection:bg-accent/25">
       {/* ═════════════════════════════════════════════════════════════════════
-          STICKY HEADER
+          MORPHING FLOATING ROUNDED RECTANGLE NAVBAR
           ═════════════════════════════════════════════════════════════════════ */}
-      <header className="sticky top-0 z-40 border-b border-border/80 bg-background/90 backdrop-blur-xl transition-colors duration-300">
-        <div className="mx-auto flex h-18 max-w-6xl items-center justify-between px-4 sm:px-6">
+      <div className="fixed top-0 left-0 right-0 z-50 flex justify-center p-3 sm:p-5 pointer-events-none transition-all duration-300">
+        <header
+          className={`pointer-events-auto w-full transition-all duration-300 ease-out flex items-center justify-between border ${
+            scrolled
+              ? 'max-w-4xl h-14 rounded-full px-4 sm:px-6 bg-card/90 backdrop-blur-2xl neu-raised-md border-accent/25 shadow-2xl'
+              : 'max-w-6xl h-18 rounded-3xl sm:rounded-full px-5 sm:px-8 bg-card/75 backdrop-blur-xl neu-raised border-border/80 shadow-lg'
+          }`}
+        >
+          {/* Brand Logo */}
           <Link href="/" className="flex items-center gap-3 group outline-none">
-            <div className="relative grid size-10 place-items-center rounded-2xl bg-card neu-raised-sm border border-border group-hover:scale-105 transition-transform duration-200">
-              <Flame className="size-5.5 text-accent drop-shadow-[0_0_8px_rgba(209,17,73,0.5)]" />
-              <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-accent ruby-glow" />
+            <div className="relative grid size-9 place-items-center rounded-2xl bg-card neu-raised-xs border border-border group-hover:scale-105 transition-transform duration-200">
+              <Flame className="size-5 text-accent drop-shadow-[0_0_8px_rgba(209,17,73,0.5)]" />
+              <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-accent ruby-glow" />
             </div>
             <div className="text-left">
-              <span className="font-serif text-xl font-bold tracking-tight block leading-none">
+              <span className="font-serif text-lg font-bold tracking-tight block leading-none">
                 Campfire
               </span>
-              <span className="text-[10px] font-mono tracking-widest text-muted-foreground uppercase">
-                Creator Fan Clubs
-              </span>
+              {!scrolled && (
+                <span className="text-[9px] font-mono tracking-widest text-muted-foreground uppercase hidden sm:block">
+                  Fan Clubs
+                </span>
+              )}
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-7 text-xs font-semibold tracking-wide text-muted-foreground">
+          {/* Nav Links */}
+          <nav className="hidden md:flex items-center gap-6 text-xs font-semibold tracking-wide text-muted-foreground">
             <a href="#how-it-works" className="hover:text-foreground transition-colors">
               How It Works
             </a>
             <a href="#live-demo" className="hover:text-foreground transition-colors">
-              Try Interactive Quest
+              Try Quest
             </a>
             <a href="#monetization" className="hover:text-foreground transition-colors">
-              Cash Rewards
+              Cash Prizes
             </a>
             <a href="#creator-studio" className="hover:text-foreground transition-colors">
-              Creator Studio
+              Studio
             </a>
             <a href="#faq" className="hover:text-foreground transition-colors">
               FAQ
             </a>
           </nav>
 
-          <div className="flex items-center gap-3">
+          {/* Right Actions */}
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => setIsDark(!isDark)}
-              className="grid size-9.5 place-items-center rounded-xl neu-raised-sm border border-border bg-card text-foreground/80 hover:text-accent hover:scale-105 transition-all duration-200"
+              className="grid size-8.5 place-items-center rounded-xl neu-raised-xs border border-border bg-card text-foreground/80 hover:text-accent transition-colors"
               aria-label="Toggle theme"
               title={`Switch to ${isDark ? 'Tactile Alabaster (Light)' : 'Tactile Obsidian (Dark)'}`}
             >
               {isDark ? (
-                <Sun className="size-4.5 text-accent drop-shadow-[0_0_6px_rgba(209,17,73,0.4)]" />
+                <Sun className="size-4 text-accent" />
               ) : (
-                <Moon className="size-4.5 text-foreground" />
+                <Moon className="size-4 text-foreground" />
               )}
             </button>
 
             <Link
               href="/login"
-              className="neu-button hidden sm:inline-flex rounded-xl px-4 py-2 text-xs font-bold text-foreground"
+              className="neu-button hidden sm:inline-flex rounded-xl px-3.5 py-1.5 text-xs font-bold text-foreground"
             >
               Sign In
             </Link>
 
             <Link
               href="/register"
-              className="neu-button-primary rounded-xl px-4.5 py-2 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5"
+              className="neu-button-primary rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5"
             >
               <span>Get Started</span>
-              <ArrowRight className="size-3.5" />
+              <ArrowRight className="size-3" />
             </Link>
           </div>
-        </div>
-      </header>
+        </header>
+      </div>
 
       {/* ═════════════════════════════════════════════════════════════════════
           HERO SECTION
           ═════════════════════════════════════════════════════════════════════ */}
-      <section className="relative overflow-hidden pt-16 pb-20 md:pt-24 md:pb-28">
+      <section className="relative overflow-hidden pt-28 pb-20 md:pt-36 md:pb-28">
         <div className="absolute top-12 left-1/2 -translate-x-1/2 size-[32rem] rounded-full bg-accent/8 blur-3xl pointer-events-none" />
 
         <div className="mx-auto max-w-6xl px-4 sm:px-6 relative z-10">
@@ -210,7 +234,7 @@ export default function LandingPage() {
               </Link>
             </div>
 
-            {/* Trust Matrix Badges */}
+            {/* Trust Badges */}
             <div className="mt-12 flex flex-wrap items-center justify-center gap-6 sm:gap-8 text-xs font-mono text-muted-foreground">
               <div className="flex items-center gap-2">
                 <Video className="size-4 text-accent" />
@@ -459,7 +483,7 @@ export default function LandingPage() {
 
       {/* ═════════════════════════════════════════════════════════════════════
           MONETIZATION & WINNER REWARDS
-          ═════════════════════════════════════════════════════════════════════ */}
+          ═════════════════════════════════════════════ */}
       <section id="monetization" className="py-20 border-t border-border/80 bg-background/50">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="text-center max-w-2xl mx-auto mb-16">
@@ -512,7 +536,7 @@ export default function LandingPage() {
                 <div className="grid size-12 place-items-center rounded-2xl neu-convex text-accent mb-6">
                   <Flame className="size-6 text-accent" />
                 </div>
-                <span className="text-[10px] font-mono uppercase text-muted-foreground font-bold">VIP VIP ACCESS</span>
+                <span className="text-[10px] font-mono uppercase text-muted-foreground font-bold">VIP ACCESS</span>
                 <h3 className="font-serif text-xl font-bold mt-1">1-on-1 Story Consultation</h3>
                 <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                   30-minute private Zoom consultation with the creator to review upcoming video ideas and behind-the-scenes lore.
@@ -528,7 +552,7 @@ export default function LandingPage() {
 
       {/* ═════════════════════════════════════════════════════════════════════
           CREATOR STUDIO & AI ENGINE
-          ═════════════════════════════════════════════════════════════════════ */}
+          ═════════════════════════════════════════════ */}
       <section id="creator-studio" className="py-20 border-t border-border/80">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
@@ -620,7 +644,7 @@ export default function LandingPage() {
 
       {/* ═════════════════════════════════════════════════════════════════════
           FAQ ACCORDION
-          ═════════════════════════════════════════════════════════════════════ */}
+          ═════════════════════════════════════════════ */}
       <section id="faq" className="py-20 border-t border-border/80 bg-background/50">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <div className="text-center mb-12">
