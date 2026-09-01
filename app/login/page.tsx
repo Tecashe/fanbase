@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowRight,
+  Check,
   Flame,
   KeyRound,
   Lock,
@@ -22,7 +23,9 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const redirectPath = searchParams.get('redirect') || '/app'
   const creatorSlug = searchParams.get('creator') || 'mkurugenzi'
+  const roleParam = searchParams.get('role')
 
+  const [accountType, setAccountType] = useState<'fan' | 'creator'>(roleParam === 'creator' ? 'creator' : 'fan')
   const [inputMode, setInputMode] = useState<'email' | 'phone'>('email')
   const [authMethod, setAuthMethod] = useState<'password' | 'code'>('password')
   const [identifier, setIdentifier] = useState('')
@@ -45,7 +48,9 @@ function LoginForm() {
           if (data.authenticated && data.user) {
             console.log('[Campfire Auth Client] Active session found for:', data.user.displayName)
             const target =
-              redirectPath === '/app' || redirectPath === '/dashboard'
+              accountType === 'creator'
+                ? `/admin/${creatorSlug}`
+                : redirectPath === '/app' || redirectPath === '/dashboard'
                 ? `/dashboard/${data.user?.slug || 'fan'}`
                 : redirectPath
             router.replace(target)
@@ -59,7 +64,7 @@ function LoginForm() {
       }
     }
     checkSession()
-  }, [creatorSlug, redirectPath, router])
+  }, [creatorSlug, redirectPath, router, accountType])
 
   const showToast = (msg: string) => {
     setToastMessage(msg)
@@ -127,6 +132,7 @@ function LoginForm() {
     console.log(`[Campfire Auth Client] Submitting login (${authMethod}) for ${identifier}...`)
 
     try {
+      let authUserResult = null
       if (authMethod === 'code') {
         const res = await fetch('/api/auth/verify-code', {
           method: 'POST',
@@ -137,17 +143,7 @@ function LoginForm() {
         const data = await res.json()
         console.log('[Campfire Auth Client] Verify-code response:', data)
         if (!res.ok) throw new Error(data.error || 'Invalid verification code')
-
-        console.log('[Campfire Auth Client] Code verified! Authenticated user:', data.user)
-        showToast('Verification successful. Redirecting to dashboard...')
-        const target =
-          redirectPath === '/app' || redirectPath === '/dashboard'
-            ? `/dashboard/${data.user?.slug || 'fan'}`
-            : redirectPath
-        setTimeout(() => {
-          router.push(target)
-          router.refresh()
-        }, 500)
+        authUserResult = data.user
       } else {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
@@ -158,18 +154,18 @@ function LoginForm() {
         const data = await res.json()
         console.log('[Campfire Auth Client] Password login response:', data)
         if (!res.ok) throw new Error(data.error || 'Invalid credentials')
-
-        console.log('[Campfire Auth Client] Password login successful! Authenticated user:', data.user)
-        showToast('Login successful. Redirecting to dashboard...')
-        const target =
-          redirectPath === '/app' || redirectPath === '/dashboard'
-            ? `/dashboard/${data.user?.slug || 'fan'}`
-            : redirectPath
-        setTimeout(() => {
-          router.push(target)
-          router.refresh()
-        }, 500)
+        authUserResult = data.user
       }
+
+      showToast('Login successful. Redirecting to workspace...')
+      const target =
+        accountType === 'creator'
+          ? `/admin/${creatorSlug}`
+          : redirectPath === '/app' || redirectPath === '/dashboard'
+          ? `/dashboard/${authUserResult?.slug || 'fan'}`
+          : redirectPath
+
+      router.replace(target)
     } catch (err: unknown) {
       console.error('[Campfire Auth Client] Login failed:', err)
       setError(err instanceof Error ? err.message : 'Login failed')
@@ -205,8 +201,51 @@ function LoginForm() {
       <div className="text-center mb-6">
         <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight">Sign In</h1>
         <p className="text-xs font-mono text-muted-foreground mt-1">
-          Access your verified quests, live points, and creator perks
+          {accountType === 'creator'
+            ? 'Sign in to access your Creator Studio workspace'
+            : 'Access your verified quests, live points, and creator perks'}
         </p>
+      </div>
+
+      {/* Account Type Selector (Fan vs Creator) */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <button
+          type="button"
+          onClick={() => setAccountType('fan')}
+          className={`p-3.5 rounded-2xl text-left transition-all ${
+            accountType === 'fan'
+              ? 'neu-inset-sm border-2 border-accent bg-background'
+              : 'neu-raised-xs border border-border bg-card hover:border-accent/40'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-lg">👥</span>
+            {accountType === 'fan' && <Check className="size-3.5 text-accent" />}
+          </div>
+          <p className="font-serif font-bold text-xs text-foreground">Fan Sign In</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+            Go to Fan Dashboard
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAccountType('creator')}
+          className={`p-3.5 rounded-2xl text-left transition-all ${
+            accountType === 'creator'
+              ? 'neu-inset-sm border-2 border-accent bg-background'
+              : 'neu-raised-xs border border-border bg-card hover:border-accent/40'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-lg">🎬</span>
+            {accountType === 'creator' && <Check className="size-3.5 text-accent" />}
+          </div>
+          <p className="font-serif font-bold text-xs text-foreground">Creator Studio</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+            Go to Creator Admin
+          </p>
+        </button>
       </div>
 
       {/* 1-Click YouTube / Google Login */}
