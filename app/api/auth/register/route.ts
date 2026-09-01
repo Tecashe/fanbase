@@ -67,10 +67,9 @@ export async function POST(request: Request) {
       })
 
       // 3. Link to creator workspace
-      const slug = creatorSlug || 'mkurugenzi'
-      const creator = await prisma.creator.findUnique({
-        where: { slug },
-      })
+      const creator = creatorSlug
+        ? await prisma.creator.findUnique({ where: { slug: creatorSlug } })
+        : await prisma.creator.findFirst()
 
       if (creator) {
         let initialPoints = 100

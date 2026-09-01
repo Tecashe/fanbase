@@ -29,7 +29,7 @@ export type PayoutClaimItem = {
 }
 
 export function PayoutManager({
-  creatorSlug = 'mkurugenzi',
+  creatorSlug = '',
   onDisburseSuccess,
 }: {
   creatorSlug?: string

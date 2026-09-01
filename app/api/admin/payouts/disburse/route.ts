@@ -4,15 +4,15 @@ import { prisma } from '@/lib/db'
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const creatorSlug = searchParams.get('creatorSlug') || 'mkurugenzi'
+    const creatorSlug = searchParams.get('creatorSlug') || ''
 
     if (!process.env.DATABASE_URL) {
       return NextResponse.json({ success: true, claims: [] })
     }
 
-    const creator = await prisma.creator.findUnique({
-      where: { slug: creatorSlug },
-    })
+    const creator = creatorSlug
+      ? await prisma.creator.findUnique({ where: { slug: creatorSlug } })
+      : await prisma.creator.findFirst()
 
     if (!creator) {
       return NextResponse.json({ success: true, claims: [] })

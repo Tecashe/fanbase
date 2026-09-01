@@ -166,18 +166,18 @@ export default function CampfireApp({
 
   // Live Database States
   const [creator, setCreator] = useState<CreatorData>({
-    id: 'cmthm6c9n0000pmj0qtcu3w5p',
-    slug: initialCreator?.slug || 'mkurugenzi',
-    displayName: initialCreator?.displayName || 'Mkurugenzi',
-    handle: `@Mkurugenziii`,
-    initials: initialCreator?.initials || 'MK',
+    id: '',
+    slug: initialCreator?.slug || 'creator',
+    displayName: initialCreator?.displayName || 'Creator',
+    handle: `@${initialCreator?.slug || 'creator'}`,
+    initials: initialCreator?.initials || 'CR',
     primaryColor: initialCreator?.primaryColor || '#d11149',
     secondaryColor: initialCreator?.secondaryColor || '#0a0a0d',
     welcomeMessage:
       initialCreator?.welcomeMessage ||
       'Welcome to the campfire. Answer questions from our stories, climb the ranks, and unlock rewards.',
-    youtubeChannelId: 'UC4tjY2tTltEKePusozUxtSA',
-    channelUrl: 'https://www.youtube.com/@Mkurugenziii',
+    youtubeChannelId: '',
+    channelUrl: '',
     stats: { totalFans: 0, totalQuizzes: 0 },
   })
 

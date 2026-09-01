@@ -28,9 +28,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Reward not found' }, { status: 404 })
     }
 
-    const creator = await prisma.creator.findUnique({
-      where: { slug: creatorSlug || 'mkurugenzi' },
-    })
+    const creator = creatorSlug
+      ? await prisma.creator.findUnique({ where: { slug: creatorSlug } })
+      : await prisma.creator.findFirst()
 
     if (!creator) {
       return NextResponse.json({ error: 'Creator workspace not found' }, { status: 404 })

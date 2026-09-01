@@ -12,9 +12,9 @@ export async function POST(request: Request) {
     }
 
     if (authUser && process.env.DATABASE_URL) {
-      const creator = await prisma.creator.findUnique({
-        where: { slug: creatorSlug || 'mkurugenzi' },
-      })
+      const creator = creatorSlug
+        ? await prisma.creator.findUnique({ where: { slug: creatorSlug } })
+        : await prisma.creator.findFirst()
 
       if (creator) {
         await prisma.storyView.upsert({

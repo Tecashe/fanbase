@@ -8,7 +8,7 @@ export async function generateMetadata({
   params: Promise<{ creatorSlug: string }>
 }) {
   const { creatorSlug } = await params
-  let name = 'Mkurugenzi'
+  let name = creatorSlug.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
 
   if (process.env.DATABASE_URL) {
     const creator = await prisma.creator.findUnique({

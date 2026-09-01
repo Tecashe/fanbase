@@ -155,7 +155,7 @@ export default function CreatorRegisterPage() {
               </label>
               <input
                 type="text"
-                placeholder="e.g. Cinema Vault, Tech Reviews KE, Abel Mutua"
+                placeholder="e.g. Your Channel Name or Brand Title"
                 value={formData.displayName}
                 onChange={(e) => handleNameChange(e.target.value)}
                 className="w-full neu-input px-3.5 py-2.5 text-xs font-medium text-foreground"
@@ -173,7 +173,7 @@ export default function CreatorRegisterPage() {
                 </span>
                 <input
                   type="text"
-                  placeholder="cinema-vault"
+                  placeholder="your-custom-slug"
                   value={formData.slug}
                   onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                   className="w-full neu-input rounded-l-none px-3.5 py-2.5 text-xs font-mono text-foreground"
@@ -184,11 +184,11 @@ export default function CreatorRegisterPage() {
 
             <div>
               <label className="text-xs font-mono uppercase text-muted-foreground block mb-1.5">
-                YouTube Channel ID (e.g. UC4tjY2tTltEKePusozUxtSA)
+                YouTube Channel ID (e.g. UCxxxxxxxxxxxxxxxxxxxxxx)
               </label>
               <input
                 type="text"
-                placeholder="UC..."
+                placeholder="UCxxxxxxxxxxxxxxxxxxxxxx"
                 value={formData.youtubeChannelId}
                 onChange={(e) => setFormData({ ...formData, youtubeChannelId: e.target.value })}
                 className="w-full neu-input px-3.5 py-2.5 text-xs font-mono text-foreground"

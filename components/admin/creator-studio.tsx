@@ -86,7 +86,7 @@ const adminNavItems: { id: AdminTab; label: string; icon: LucideIcon; badge?: st
 ]
 
 export default function CreatorStudio({
-  creatorSlug = 'mkurugenzi',
+  creatorSlug = '',
   initialTab = 'overview',
 }: {
   creatorSlug?: string
@@ -102,11 +102,11 @@ export default function CreatorStudio({
   // Live Studio Data
   const [creator, setCreator] = useState<any>({
     slug: creatorSlug,
-    displayName: 'Mkurugenzi',
+    displayName: creatorSlug ? creatorSlug.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Creator',
     brandPrimaryColor: '#d11149',
     brandSecondaryColor: '#0a0a0d',
     welcomeMessage: 'Welcome to the campfire. Answer questions from our stories, climb the ranks, and unlock rewards.',
-    youtubeChannelId: 'UC4tjY2tTltEKePusozUxtSA',
+    youtubeChannelId: '',
   })
   const [stories, setStories] = useState<any[]>([])
   const [quizzes, setQuizzes] = useState<any[]>([])
@@ -604,10 +604,11 @@ export default function CreatorStudio({
 
                   <div>
                     <label className="text-xs font-mono uppercase text-muted-foreground block mb-1.5">
-                      YouTube Channel ID (@Mkurugenziii)
+                      YouTube Channel ID (for Subscriber Gating)
                     </label>
                     <input
                       type="text"
+                      placeholder="e.g. UCxxxxxxxxxxxxxxxxxxxxxx"
                       value={creator.youtubeChannelId}
                       onChange={(e) => setCreator({ ...creator, youtubeChannelId: e.target.value })}
                       className="w-full neu-input px-3.5 py-2.5 text-xs text-foreground font-mono"

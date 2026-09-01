@@ -5,7 +5,7 @@ import { createSession, AUTH_COOKIE_NAME } from '@/lib/custom-auth'
 
 export async function POST(request: Request) {
   try {
-    const { email, phone, identifier, code, creatorSlug = 'mkurugenzi' } = await request.json()
+    const { email, phone, identifier, code, creatorSlug } = await request.json()
 
     const rawTarget = identifier || phone || email
     if (!rawTarget || !code) {
@@ -53,9 +53,9 @@ export async function POST(request: Request) {
         })
 
         // Ensure linked to creator
-        const creator = await prisma.creator.findUnique({
-          where: { slug: creatorSlug },
-        })
+        const creator = creatorSlug
+          ? await prisma.creator.findUnique({ where: { slug: creatorSlug } })
+          : await prisma.creator.findFirst()
 
         if (creator) {
           await prisma.userCreatorLink.upsert({

@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const code = searchParams.get('code')
     const state = searchParams.get('state')
     const errorParam = searchParams.get('error')
-    let creatorSlug = 'mkurugenzi'
+    let creatorSlug = ''
     let appOrigin = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
     if (errorParam) {
@@ -34,6 +34,11 @@ export async function GET(request: Request) {
       } catch {
         console.log('[Campfire YouTube Auth Callback] State raw string:', state)
       }
+    }
+
+    if (!creatorSlug && process.env.DATABASE_URL) {
+      const firstCreator = await prisma.creator.findFirst()
+      if (firstCreator) creatorSlug = firstCreator.slug
     }
 
     let authUser = await getAuthUser()
@@ -131,28 +136,33 @@ export async function GET(request: Request) {
         console.log('[Campfire YouTube Auth Callback] Session established and cookie written.')
       }
 
-      // 3. Strictly Verify Subscription against @Mkurugenziii (UC4tjY2tTltEKePusozUxtSA)
+      // 3. Strictly Verify Subscription against creator's registered YouTube channel
       if (authUser) {
-        const creator = await prisma.creator.findUnique({
-          where: { slug: creatorSlug },
-        })
-
-        if (creator) {
-          const targetChannelId = creator.youtubeChannelId || 'UC4tjY2tTltEKePusozUxtSA'
-
-          if (accessToken) {
-            console.log(`[Campfire YouTube Auth Callback] Querying YouTube Data API for channel: ${targetChannelId}...`)
-            const verification = await verifyYouTubeSubscription({
-              accessToken,
-              creatorChannelId: targetChannelId,
-            })
-            isSubscribed = verification.verified
-            console.log(`[Campfire YouTube Auth Callback] Verification result for user ${authUser.id}: isSubscribed = ${isSubscribed}`)
-          } else {
-            console.warn('[Campfire YouTube Auth Callback] No access token available, user is marked unverified.')
-            isSubscribed = false
+        let targetChannelId = ''
+        let creatorRecord = null
+        if (creatorSlug) {
+          creatorRecord = await prisma.creator.findUnique({
+            where: { slug: creatorSlug },
+          })
+          if (creatorRecord?.youtubeChannelId) {
+            targetChannelId = creatorRecord.youtubeChannelId
           }
+        }
 
+        if (targetChannelId && accessToken) {
+          console.log(`[Campfire YouTube Auth Callback] Querying YouTube Data API for channel: ${targetChannelId}...`)
+          const verification = await verifyYouTubeSubscription({
+            accessToken,
+            creatorChannelId: targetChannelId,
+          })
+          isSubscribed = verification.verified
+          console.log(`[Campfire YouTube Auth Callback] Verification result for user ${authUser.id}: isSubscribed = ${isSubscribed}`)
+        } else {
+          console.warn('[Campfire YouTube Auth Callback] No valid channel ID or access token available, user is marked unverified.')
+          isSubscribed = false
+        }
+
+        if (creatorRecord) {
           const expiresAt = new Date()
           expiresAt.setDate(expiresAt.getDate() + 30)
 
@@ -160,7 +170,7 @@ export async function GET(request: Request) {
             where: {
               userId_creatorId: {
                 userId: authUser.id,
-                creatorId: creator.id,
+                creatorId: creatorRecord.id,
               },
             },
           })
@@ -183,7 +193,7 @@ export async function GET(request: Request) {
             await prisma.userCreatorLink.create({
               data: {
                 userId: authUser.id,
-                creatorId: creator.id,
+                creatorId: creatorRecord.id,
                 youtubeSubscriptionVerified: isSubscribed,
                 youtubeVerifiedAt: isSubscribed ? new Date() : null,
                 subscriptionCheckExpiresAt: isSubscribed ? expiresAt : null,

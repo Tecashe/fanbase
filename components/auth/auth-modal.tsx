@@ -115,7 +115,7 @@ export function AuthModal({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Amina K."
+                  placeholder="e.g. Your Name"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium"

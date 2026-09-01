@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
 
-    const creatorName = searchParams.get('creator') || 'Mkurugenzi'
+    const creatorName = searchParams.get('creator') || 'Creator'
     const fanName = searchParams.get('fan') || 'Top Fan'
     const score = searchParams.get('score') || '250'
     const streak = searchParams.get('streak') || '7'
@@ -30,18 +30,16 @@ export async function GET(request: Request) {
             padding: '40px 60px',
           }}
         >
-          {/* Main Card */}
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
               width: '100%',
-              backgroundColor: '#ffffff',
+              backgroundColor: '#f2f2f8',
               borderRadius: '32px',
-              padding: '48px 56px',
-              boxShadow:
-                '16px 16px 32px rgba(190, 190, 202, 0.6), -16px -16px 32px rgba(255, 255, 255, 0.9)',
-              border: '1px solid #d4d4dc',
+              padding: '48px',
+              border: '2px solid #ffffff',
+              boxShadow: '20px 20px 60px #c4c4cb, -20px -20px 60px #ffffff',
             }}
           >
             {/* Header */}
@@ -51,6 +49,8 @@ export async function GET(request: Request) {
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 marginBottom: '32px',
+                borderBottom: '1px solid #dedee8',
+                paddingBottom: '24px',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -64,11 +64,11 @@ export async function GET(request: Request) {
                     borderRadius: '16px',
                     backgroundColor: '#d11149',
                     color: '#ffffff',
-                    fontSize: '24px',
+                    fontSize: '20px',
                     fontWeight: 'bold',
                   }}
                 >
-                  🔥
+                  CF
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#16161d' }}>
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
                   fontFamily: 'monospace',
                 }}
               >
-                ⚡ {streak} DAY STREAK
+                {streak} DAY STREAK
               </div>
             </div>
 

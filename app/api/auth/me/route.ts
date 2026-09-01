@@ -6,7 +6,7 @@ import { toUserSlug } from '@/lib/slug'
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const creatorSlug = searchParams.get('creatorSlug') || 'mkurugenzi'
+    const creatorSlug = searchParams.get('creatorSlug') || ''
 
     const authUser = await getAuthUser()
 
@@ -48,9 +48,9 @@ export async function GET(request: Request) {
 
     if (process.env.DATABASE_URL) {
       try {
-        const creator = await prisma.creator.findUnique({
-          where: { slug: creatorSlug },
-        })
+        const creator = creatorSlug
+          ? await prisma.creator.findUnique({ where: { slug: creatorSlug } })
+          : await prisma.creator.findFirst()
 
         if (creator) {
           // Fetch or create user-creator link

@@ -4,7 +4,7 @@ import { getGoogleOAuthUrl } from '@/lib/youtube'
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const creatorSlug = searchParams.get('creatorSlug') || 'mkurugenzi'
+    const creatorSlug = searchParams.get('creatorSlug') || ''
     const origin = searchParams.get('origin') || undefined
     const roleParam = searchParams.get('role') === 'creator' ? 'creator' : 'fan'
 

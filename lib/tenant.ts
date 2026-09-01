@@ -38,5 +38,5 @@ export async function requireCreatorAccess(creatorIdOrSlug: string) {
 }
 
 export function resolveTenant(request: Request) {
-  return new URL(request.url).pathname.split('/').filter(Boolean)[0] ?? 'mkurugenzi'
+  return new URL(request.url).pathname.split('/').filter(Boolean)[0] ?? ''
 }

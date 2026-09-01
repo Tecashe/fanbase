@@ -8,7 +8,7 @@ const GOOGLE_SCOPES = [
 ].join(' ')
 
 export function getGoogleOAuthUrl(
-  creatorSlug: string = 'mkurugenzi',
+  creatorSlug: string = '',
   origin?: string,
   role: 'fan' | 'creator' = 'fan',
 ): string {
@@ -56,11 +56,10 @@ export async function getGoogleUserProfile(accessToken: string): Promise<{
 
 /**
  * Strictly verifies if user is subscribed to creator's YouTube channel via YouTube Data API v3.
- * Target Channel: https://www.youtube.com/@Mkurugenziii (Channel ID: UC4tjY2tTltEKePusozUxtSA)
  */
 export async function verifyYouTubeSubscription({
   accessToken,
-  creatorChannelId = 'UC4tjY2tTltEKePusozUxtSA',
+  creatorChannelId,
 }: {
   accessToken: string
   creatorChannelId?: string
@@ -70,7 +69,14 @@ export async function verifyYouTubeSubscription({
   quotaExceeded?: boolean
   error?: string
 }> {
-  const targetChannelId = creatorChannelId || 'UC4tjY2tTltEKePusozUxtSA'
+  const targetChannelId = creatorChannelId
+
+  if (!targetChannelId) {
+    return {
+      verified: false,
+      error: 'Creator YouTube Channel ID is not configured.',
+    }
+  }
 
   if (!accessToken || accessToken.startsWith('mock-')) {
     console.warn('[YouTube API Strict] No valid access token, verification is FALSE.')

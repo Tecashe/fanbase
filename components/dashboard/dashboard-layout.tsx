@@ -71,7 +71,7 @@ const sidebarNavItems: { id: View; label: string; icon: LucideIcon; pathSegment:
 ]
 
 export default function DashboardLayout({
-  creatorSlug = 'mkurugenzi',
+  creatorSlug = '',
   initialView = 'overview',
   userSlug: propUserSlug,
 }: {
@@ -130,16 +130,16 @@ export default function DashboardLayout({
 
   // Live Database States
   const [creator, setCreator] = useState<CreatorData>({
-    id: 'cmthm6c9n0000pmj0qtcu3w5p',
+    id: '',
     slug: creatorSlug,
-    displayName: 'Mkurugenzi',
-    handle: `@Mkurugenziii`,
-    initials: 'MK',
+    displayName: creatorSlug ? creatorSlug.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Creator',
+    handle: `@${creatorSlug || 'creator'}`,
+    initials: 'CR',
     primaryColor: '#d11149',
     secondaryColor: '#0a0a0d',
     welcomeMessage: 'Welcome to the campfire. Answer questions from our stories, climb the ranks, and unlock rewards.',
-    youtubeChannelId: 'UC4tjY2tTltEKePusozUxtSA',
-    channelUrl: 'https://www.youtube.com/@Mkurugenziii',
+    youtubeChannelId: '',
+    channelUrl: '',
     stats: { totalFans: 0, totalQuizzes: 0 },
   })
 

@@ -10,10 +10,10 @@ export type Creator = {
 }
 
 export const creator: Creator = {
-  slug: 'mkurugenzi',
-  displayName: 'Mkurugenzi',
-  handle: '@mkurugenzi',
-  initials: 'MK',
+  slug: 'creator',
+  displayName: 'Featured Creator',
+  handle: '@creator',
+  initials: 'FC',
   primaryColor: '#d11149',
   secondaryColor: '#272734',
   welcomeMessage: 'The internet’s tactile sanctuary for curious minds.',
@@ -21,8 +21,8 @@ export const creator: Creator = {
 }
 
 export const fan = {
-  name: 'Amina K.',
-  initials: 'AK',
+  name: 'Fan Member',
+  initials: 'FM',
   points: 1840,
   rank: 14,
   streak: 7,
@@ -101,7 +101,7 @@ export const leaderboard = [
   { rank: 3, name: 'Theo R.', points: 3960, initials: 'TR' },
   { rank: 4, name: 'Nia W.', points: 3550, initials: 'NW' },
   { rank: 5, name: 'David O.', points: 3210, initials: 'DO' },
-  { rank: 14, name: 'Amina K.', points: 1840, initials: 'AK', me: true },
+  { rank: 14, name: 'You (Fan)', points: 1840, initials: 'YO', me: true },
 ]
 
 export const rewards = [
@@ -136,8 +136,8 @@ export const analytics = {
 }
 
 export const referrals = {
-  code: 'AMINA-FIRE',
+  code: 'FAN-INVITE',
   referred: 3,
   earned: 300,
-  link: 'campfire.app/mkurugenzi/r/AMINA-FIRE',
+  link: 'campfire.app/[channel-slug]/r/FAN-INVITE',
 }

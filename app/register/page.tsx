@@ -30,7 +30,7 @@ function RegisterForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectPath = searchParams.get('redirect') || '/app'
-  const creatorSlugParam = searchParams.get('creator') || 'mkurugenzi'
+  const creatorSlugParam = searchParams.get('creator') || ''
   const refCode = searchParams.get('ref')
   const roleParam = searchParams.get('role')
 
@@ -462,7 +462,7 @@ function RegisterForm() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Amina K."
+                  placeholder="e.g. Your Name"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium rounded-xl"
@@ -658,7 +658,7 @@ function RegisterForm() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Phil Karanja or Cinema Vault"
+                  placeholder="e.g. Your Channel or Brand Name"
                   value={creatorName}
                   onChange={(e) => setCreatorName(e.target.value)}
                   className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium rounded-xl"
@@ -675,7 +675,7 @@ function RegisterForm() {
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground">@</span>
                   <input
                     type="text"
-                    placeholder="Mkurugenziii"
+                    placeholder="yourhandle"
                     value={channelHandle}
                     onChange={(e) => setChannelHandle(e.target.value.replace('@', ''))}
                     className="w-full neu-input pl-8 pr-3.5 py-2.5 text-xs text-foreground font-medium rounded-xl"
@@ -692,7 +692,7 @@ function RegisterForm() {
                   <input
                     type="text"
                     required
-                    placeholder="mkurugenzi"
+                    placeholder="your-custom-slug"
                     value={creatorSlug}
                     onChange={(e) => setCreatorSlug(e.target.value)}
                     className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-mono font-medium rounded-xl"
@@ -709,7 +709,7 @@ function RegisterForm() {
                 <Tv className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="e.g. UC4tjY2tTltEKePusozUxtSA"
+                  placeholder="e.g. UCxxxxxxxxxxxxxxxxxxxxxx"
                   value={youtubeChannelId}
                   onChange={(e) => setYoutubeChannelId(e.target.value)}
                   className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-mono rounded-xl"
@@ -727,7 +727,7 @@ function RegisterForm() {
                   <input
                     type="text"
                     required
-                    placeholder="admin@channel.com"
+                    placeholder="admin@yourchannel.com"
                     value={creatorEmail}
                     onChange={(e) => setCreatorEmail(e.target.value)}
                     className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium rounded-xl"

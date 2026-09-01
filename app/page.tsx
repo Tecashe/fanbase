@@ -50,7 +50,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     // Check if user already has an active stored session
-    fetch('/api/auth/me?creatorSlug=mkurugenzi')
+    fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.authenticated && data?.user) {
@@ -113,11 +113,11 @@ export default function LandingPage() {
     },
     {
       q: 'How does the referral program work?',
-      a: 'Every fan receives a personalized invite link (e.g. campfire.app/mkurugenzi?ref=user_id). When friends join and verify, both the referrer and the new fan instantly receive +100 bonus points credited directly to their live standings.',
+      a: 'Every fan receives a personalized invite link (e.g. campfire.app/[channel-slug]?ref=user_id). When friends join and verify, both the referrer and the new fan instantly receive +100 bonus points credited directly to their live standings.',
     },
     {
       q: 'Is Campfire multi-tenant for multiple creators?',
-      a: 'Absolutely. Each creator gets their own white-labeled portal at /creatorSlug (e.g. /mkurugenzi) featuring custom branding colors, welcome notes, exclusive quests, and creator-specific trophy badges.',
+      a: 'Absolutely. Each creator gets their own white-labeled portal at /[channel-slug] featuring custom branding colors, welcome notes, exclusive quests, and creator-specific trophy badges.',
     },
   ]
 
@@ -299,8 +299,8 @@ export default function LandingPage() {
                   <Flame className="size-4.5 text-accent" />
                 </div>
                 <div>
-                  <p className="font-serif text-sm font-bold">Mkurugenzi Official Campfire</p>
-                  <p className="text-[10px] font-mono text-muted-foreground">@Mkurugenziii · Active Community Rotation</p>
+                  <p className="font-serif text-sm font-bold">Featured Creator Campfire</p>
+                  <p className="text-[10px] font-mono text-muted-foreground">Active Community Quests & Leaderboard Rotation</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">

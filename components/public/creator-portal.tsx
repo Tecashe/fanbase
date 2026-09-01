@@ -24,7 +24,7 @@ import {
 import DashboardLayout from '@/components/dashboard/dashboard-layout'
 
 export default function CreatorPortal({
-  creatorSlug = 'mkurugenzi',
+  creatorSlug = '',
 }: {
   creatorSlug?: string
 }) {
@@ -39,13 +39,13 @@ export default function CreatorPortal({
   // Live Public Creator Data
   const [creator, setCreator] = useState<any>({
     slug: creatorSlug,
-    displayName: 'Mkurugenzi',
+    displayName: creatorSlug ? creatorSlug.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Creator',
     handle: `@${creatorSlug}`,
     brandPrimaryColor: '#d11149',
     brandSecondaryColor: '#0a0a0d',
     welcomeMessage: 'Welcome to the campfire. Answer questions from our stories, climb the ranks, and unlock rewards.',
-    youtubeChannelId: 'UC4tjY2tTltEKePusozUxtSA',
-    channelUrl: 'https://www.youtube.com/@Mkurugenziii',
+    youtubeChannelId: '',
+    channelUrl: '',
   })
   const [quizzes, setQuizzes] = useState<any[]>([])
   const [rewards, setRewards] = useState<any[]>([])
@@ -194,7 +194,12 @@ export default function CreatorPortal({
                   <span>Join Campfire & Earn 150 PTS</span>
                 </Link>
                 <a
-                  href={creator.channelUrl || 'https://www.youtube.com/@Mkurugenziii'}
+                  href={
+                    creator.channelUrl ||
+                    (creator.youtubeChannelId
+                      ? `https://www.youtube.com/channel/${creator.youtubeChannelId}`
+                      : 'https://www.youtube.com')
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="neu-button rounded-xl px-4 py-3.5 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-2 text-foreground"

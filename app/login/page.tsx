@@ -23,7 +23,7 @@ function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectPath = searchParams.get('redirect') || '/app'
-  const creatorSlug = searchParams.get('creator') || 'mkurugenzi'
+  const creatorSlug = searchParams.get('creator') || ''
   const roleParam = searchParams.get('role')
 
   const [accountType, setAccountType] = useState<'fan' | 'creator'>('fan')
@@ -62,14 +62,15 @@ function LoginForm() {
   useEffect(() => {
     async function checkSession() {
       try {
-        const res = await fetch(`/api/auth/me?creatorSlug=${creatorSlug}`)
+        const query = creatorSlug ? `?creatorSlug=${creatorSlug}` : ''
+        const res = await fetch(`/api/auth/me${query}`)
         if (res.ok) {
           const data = await res.json()
           if (data.authenticated && data.user) {
             console.log('[Campfire Auth Client] Active session found for:', data.user.displayName)
             const target =
               accountType === 'creator' || data.user.role === 'creator'
-                ? `/admin/${creatorSlug}`
+                ? (creatorSlug ? `/admin/${creatorSlug}` : (data.user.slug ? `/admin/${data.user.slug}` : '/explore'))
                 : redirectPath === '/app' || redirectPath === '/dashboard'
                 ? `/dashboard/${data.user?.slug || 'fan'}`
                 : redirectPath
@@ -175,7 +176,11 @@ function LoginForm() {
       showToast('Login successful. Redirecting to workspace...')
       const target =
         accountType === 'creator' || authUserResult?.role === 'creator'
-          ? `/admin/${creatorSlug}`
+          ? authUserResult?.slug
+            ? `/admin/${authUserResult.slug}`
+            : creatorSlug
+            ? `/admin/${creatorSlug}`
+            : '/explore'
           : redirectPath === '/app' || redirectPath === '/dashboard'
           ? `/dashboard/${authUserResult?.slug || 'fan'}`
           : redirectPath
