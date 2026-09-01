@@ -13,6 +13,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react'
+import { FanState } from '@/components/campfire-app'
 
 export type BadgeItem = {
   id: string
@@ -21,6 +22,7 @@ export type BadgeItem = {
   iconName: 'flame' | 'zap' | 'trophy' | 'users' | 'star' | 'eye'
   unlocked: boolean
   criteria: string
+  progressText: string
 }
 
 const badgeIconMap: Record<string, LucideIcon> = {
@@ -32,76 +34,96 @@ const badgeIconMap: Record<string, LucideIcon> = {
   eye: Eye,
 }
 
-export const defaultBadges: BadgeItem[] = [
-  {
-    id: 'b1',
-    title: 'First Flame',
-    description: 'Completed your first episode recall quest.',
-    iconName: 'flame',
-    unlocked: true,
-    criteria: 'Complete 1 quest',
-  },
-  {
-    id: 'b2',
-    title: '7-Day Spark',
-    description: 'Maintained a 7-day active participation streak.',
-    iconName: 'zap',
-    unlocked: true,
-    criteria: '7-day streak',
-  },
-  {
-    id: 'b3',
-    title: 'Story Arc Master',
-    description: 'Answered all questions in the Season 1 arc correctly.',
-    iconName: 'trophy',
-    unlocked: false,
-    criteria: '100% score on Ep 40-42',
-  },
-  {
-    id: 'b4',
-    title: 'Circle Ambassador',
-    description: 'Invited 3 verified friends around the fire.',
-    iconName: 'users',
-    unlocked: true,
-    criteria: '3 verified referrals',
-  },
-  {
-    id: 'b5',
-    title: 'Top 10 Contender',
-    description: 'Finished in the weekly top 10 ranking.',
-    iconName: 'star',
-    unlocked: false,
-    criteria: 'Reach Top 10 rank',
-  },
-  {
-    id: 'b6',
-    title: 'Watch Party Veteran',
-    description: 'Confirmed 10 video watch-to-unlock challenges.',
-    iconName: 'eye',
-    unlocked: false,
-    criteria: '10 watch confirmations',
-  },
-]
-
 export function BadgesSection({
-  badges = defaultBadges,
+  fan,
+  watchedStoriesCount = 0,
 }: {
-  badges?: BadgeItem[]
+  fan: FanState | null
+  watchedStoriesCount?: number
 }) {
+  const points = fan?.points || 0
+  const streak = fan?.streak || 0
+  const referrals = fan?.referrals || 0
+  const rank = fan?.rank || 0
+  const unlockedBadgeIds = fan?.unlockedBadgeIds || []
+
+  // Dynamic real-data criteria evaluation
+  const badges: BadgeItem[] = [
+    {
+      id: 'b1',
+      title: 'First Flame',
+      description: 'Completed your first episode recall quest.',
+      iconName: 'flame',
+      unlocked: points > 100 || unlockedBadgeIds.includes('b1'),
+      criteria: 'Complete 1 quest',
+      progressText: points > 100 ? 'Completed' : '0 / 1 Completed',
+    },
+    {
+      id: 'b2',
+      title: '7-Day Spark',
+      description: 'Maintained a 7-day active participation streak.',
+      iconName: 'zap',
+      unlocked: streak >= 7 || unlockedBadgeIds.includes('b2'),
+      criteria: '7-day streak',
+      progressText: `${streak} / 7 Days Active`,
+    },
+    {
+      id: 'b3',
+      title: 'YouTube Superfan',
+      description: 'Verified active subscription to the YouTube channel.',
+      iconName: 'trophy',
+      unlocked: !!fan?.youtubeVerified || unlockedBadgeIds.includes('b3'),
+      criteria: 'Verified YouTube Subscriber',
+      progressText: fan?.youtubeVerified ? 'Verified Active' : 'Not Connected',
+    },
+    {
+      id: 'b4',
+      title: 'Circle Ambassador',
+      description: 'Invited 3 verified friends around the campfire.',
+      iconName: 'users',
+      unlocked: referrals >= 3 || unlockedBadgeIds.includes('b4'),
+      criteria: '3 verified referrals',
+      progressText: `${referrals} / 3 Friends Joined`,
+    },
+    {
+      id: 'b5',
+      title: 'Top 10 Contender',
+      description: 'Climbed into the top 10 on the live leaderboard.',
+      iconName: 'star',
+      unlocked: (rank > 0 && rank <= 10) || unlockedBadgeIds.includes('b5'),
+      criteria: 'Reach Top 10 rank',
+      progressText: rank > 0 ? `Current Rank: #${rank}` : 'Unranked',
+    },
+    {
+      id: 'b6',
+      title: 'Watch Party Veteran',
+      description: 'Confirmed episode watch-to-unlock challenges.',
+      iconName: 'eye',
+      unlocked: watchedStoriesCount >= 3 || unlockedBadgeIds.includes('b6'),
+      criteria: '3 episode watch confirmations',
+      progressText: `${watchedStoriesCount} / 3 Confirmed`,
+    },
+  ]
+
+  const totalUnlocked = badges.filter((b) => b.unlocked).length
+
   return (
-    <div className="neu-card p-6 sm:p-8 border border-border/80">
-      <div className="flex items-center justify-between mb-6">
+    <div className="neu-card p-6 sm:p-8 border border-border/80 bg-card">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-border/60">
         <div>
           <div className="flex items-center gap-2">
             <span className="ruby-dot" />
             <p className="text-xs font-mono font-bold uppercase tracking-wider text-accent">
-              FAN COLLECTIBLES & BADGES
+              LIVE POSTGRES METRICS & COLLECTIBLES
             </p>
           </div>
           <h3 className="font-serif text-2xl font-bold mt-1">Your Trophy Cabinet</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Badges unlock automatically as your live points, streaks, watch confirmations, and referrals are recorded in Neon DB.
+          </p>
         </div>
-        <span className="rounded-full px-3 py-1 neu-pill-inset text-xs font-mono text-accent font-bold">
-          {badges.filter((b) => b.unlocked).length} / {badges.length} UNLOCKED
+        <span className="self-start sm:self-auto rounded-full px-3.5 py-1.5 neu-pill-inset text-xs font-mono text-accent font-bold tracking-wider">
+          {totalUnlocked} / {badges.length} UNLOCKED
         </span>
       </div>
 
@@ -111,16 +133,16 @@ export function BadgesSection({
           return (
             <div
               key={b.id}
-              className={`p-4.5 rounded-2xl transition-all duration-200 flex items-start gap-3.5 ${
+              className={`p-5 rounded-2xl transition-all duration-200 flex items-start gap-4 ${
                 b.unlocked
-                  ? 'neu-raised-sm border border-border bg-card'
+                  ? 'neu-raised-sm border border-accent/30 bg-card shadow-sm'
                   : 'neu-inset-xs border border-border/50 bg-background/50 opacity-60'
               }`}
             >
               <div
-                className={`grid size-11 shrink-0 place-items-center rounded-xl font-bold ${
+                className={`grid size-12 shrink-0 place-items-center rounded-2xl font-bold ${
                   b.unlocked
-                    ? 'bg-accent/15 text-accent border border-accent/30 ruby-glow'
+                    ? 'bg-accent/15 text-accent border border-accent/40 ruby-glow'
                     : 'neu-inset-xs text-muted-foreground'
                 }`}
               >
@@ -135,8 +157,13 @@ export function BadgesSection({
                   <h4 className="font-serif text-sm font-bold text-foreground truncate">{b.title}</h4>
                   {b.unlocked && <CheckCircle2 className="size-3.5 text-accent shrink-0" />}
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{b.description}</p>
-                <p className="text-[10px] font-mono text-accent/90 mt-2">{b.criteria}</p>
+                <p className="text-xs text-muted-foreground mt-1 leading-snug">{b.description}</p>
+                <div className="mt-3 flex items-center justify-between text-[10px] font-mono">
+                  <span className="text-muted-foreground font-semibold uppercase">{b.criteria}</span>
+                  <span className={`font-bold ${b.unlocked ? 'text-accent' : 'text-muted-foreground'}`}>
+                    {b.progressText}
+                  </span>
+                </div>
               </div>
             </div>
           )

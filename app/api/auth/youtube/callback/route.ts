@@ -155,31 +155,44 @@ export async function GET(request: Request) {
           const expiresAt = new Date()
           expiresAt.setDate(expiresAt.getDate() + 30)
 
-          await prisma.userCreatorLink.upsert({
+          const existingLink = await prisma.userCreatorLink.findUnique({
             where: {
               userId_creatorId: {
                 userId: authUser.id,
                 creatorId: creator.id,
               },
             },
-            update: {
-              youtubeSubscriptionVerified: isSubscribed,
-              youtubeVerifiedAt: isSubscribed ? new Date() : null,
-              subscriptionCheckExpiresAt: isSubscribed ? expiresAt : null,
-              pointsBalance: isSubscribed ? { increment: 150 } : undefined,
-              lastActiveAt: new Date(),
-            },
-            create: {
-              userId: authUser.id,
-              creatorId: creator.id,
-              youtubeSubscriptionVerified: isSubscribed,
-              youtubeVerifiedAt: isSubscribed ? new Date() : null,
-              subscriptionCheckExpiresAt: isSubscribed ? expiresAt : null,
-              pointsBalance: isSubscribed ? 250 : 100,
-              currentStreak: 1,
-              longestStreak: 1,
-            },
           })
+
+          // Only award YouTube verification bonus points (+150) once upon first verification
+          const isNewlyVerified = isSubscribed && (!existingLink || !existingLink.youtubeSubscriptionVerified)
+
+          if (existingLink) {
+            await prisma.userCreatorLink.update({
+              where: { id: existingLink.id },
+              data: {
+                youtubeSubscriptionVerified: isSubscribed,
+                youtubeVerifiedAt: isSubscribed ? (existingLink.youtubeVerifiedAt || new Date()) : null,
+                subscriptionCheckExpiresAt: isSubscribed ? expiresAt : null,
+                pointsBalance: isNewlyVerified ? { increment: 150 } : undefined,
+                lastActiveAt: new Date(),
+              },
+            })
+          } else {
+            await prisma.userCreatorLink.create({
+              data: {
+                userId: authUser.id,
+                creatorId: creator.id,
+                youtubeSubscriptionVerified: isSubscribed,
+                youtubeVerifiedAt: isSubscribed ? new Date() : null,
+                subscriptionCheckExpiresAt: isSubscribed ? expiresAt : null,
+                pointsBalance: isSubscribed ? 250 : 100,
+                currentStreak: 1,
+                longestStreak: 1,
+                lastActiveAt: new Date(),
+              },
+            })
+          }
         }
       }
     }

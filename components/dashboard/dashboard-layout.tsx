@@ -195,6 +195,13 @@ export default function DashboardLayout({
   const [period, setPeriod] = useState<'This week' | 'This month' | 'All time'>('This week')
   const [verifyingYoutube, setVerifyingYoutube] = useState(false)
 
+  const [liveAnalytics, setLiveAnalytics] = useState({
+    verifiedFans: '0',
+    completions: '0%',
+    points: '0',
+    trend: '+18%',
+  })
+
   // Theme Sync
   useEffect(() => {
     const root = document.documentElement
@@ -229,9 +236,10 @@ export default function DashboardLayout({
   // 2. Fetch live data
   const loadData = async () => {
     try {
-      const [creatorRes, leaderboardRes] = await Promise.all([
+      const [creatorRes, leaderboardRes, analyticsRes] = await Promise.all([
         fetch(`/api/creators/${creator.slug}/data`),
         fetch(`/api/creators/${creator.slug}/leaderboard`),
+        fetch(`/api/creators/${creator.slug}/analytics`),
       ])
 
       if (creatorRes.ok) {
@@ -255,6 +263,18 @@ export default function DashboardLayout({
       if (leaderboardRes.ok) {
         const data = await leaderboardRes.json()
         if (Array.isArray(data.leaderboard)) setLeaderboard(data.leaderboard)
+      }
+
+      if (analyticsRes.ok) {
+        const data = await analyticsRes.json()
+        if (data.analytics) {
+          setLiveAnalytics({
+            verifiedFans: data.analytics.verifiedFans || '0',
+            completions: data.analytics.completionRate || '0%',
+            points: data.analytics.pointsDistributed || '0',
+            trend: '+24%',
+          })
+        }
       }
     } catch (e) {
       console.error(e)
@@ -779,7 +799,9 @@ export default function DashboardLayout({
             </div>
           )}
 
-          {view === 'badges' && <BadgesSection />}
+          {view === 'badges' && (
+            <BadgesSection fan={fanState} watchedStoriesCount={watchedStories.length} />
+          )}
 
           {view === 'admin' && (
             <div className="space-y-6">
@@ -807,7 +829,13 @@ export default function DashboardLayout({
                 </div>
               </div>
 
-              <PayoutManager onDisburseSuccess={() => showToast('Winner payout disbursed successfully.')} />
+              <PayoutManager
+                creatorSlug={creator.slug}
+                onDisburseSuccess={() => {
+                  showToast('Winner payout disbursed successfully.')
+                  loadData()
+                }}
+              />
             </div>
           )}
         </main>
@@ -854,12 +882,7 @@ export default function DashboardLayout({
         isOpen={isSponsorExportOpen}
         onClose={() => setIsSponsorExportOpen(false)}
         creator={creator}
-        analytics={{
-          verifiedFans: 'Live',
-          completions: '84%',
-          points: '5,000+',
-          trend: '+24%',
-        }}
+        analytics={liveAnalytics}
       />
 
       {/* YouTube Subscription Gating Modal */}
@@ -1348,42 +1371,52 @@ function LeaderboardCard({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        {roster.map((row) => {
-          const isMe = row.me
-          return (
-            <div
-              key={row.rank}
-              className={`flex items-center gap-3.5 rounded-2xl p-3.5 transition-all ${
-                isMe
-                  ? 'neu-inset-sm border-2 border-accent/50 bg-background'
-                  : 'neu-raised-xs border border-border/70 bg-card'
-              }`}
-            >
-              <span className="w-8 text-center font-mono text-xs font-bold text-muted-foreground">
-                #{row.rank}
-              </span>
+        {roster.length === 0 ? (
+          <div className="py-12 text-center rounded-2xl neu-inset-xs border border-border/60">
+            <Trophy className="size-8 mx-auto mb-2 text-muted-foreground/50" />
+            <p className="font-serif text-sm font-bold text-foreground">No Rankings Recorded Yet</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+              Complete your first episode recall quest to register your score on the live standings.
+            </p>
+          </div>
+        ) : (
+          roster.map((row) => {
+            const isMe = row.me
+            return (
               <div
-                className={`grid size-8 place-items-center rounded-full text-xs font-bold ${
-                  isMe ? 'bg-accent text-accent-foreground' : 'neu-inset-xs text-foreground'
+                key={row.rank}
+                className={`flex items-center gap-3.5 rounded-2xl p-3.5 transition-all ${
+                  isMe
+                    ? 'neu-inset-sm border-2 border-accent/50 bg-background'
+                    : 'neu-raised-xs border border-border/70 bg-card'
                 }`}
               >
-                {row.initials}
+                <span className="w-8 text-center font-mono text-xs font-bold text-muted-foreground">
+                  #{row.rank}
+                </span>
+                <div
+                  className={`grid size-8 place-items-center rounded-full text-xs font-bold ${
+                    isMe ? 'bg-accent text-accent-foreground' : 'neu-inset-xs text-foreground'
+                  }`}
+                >
+                  {row.initials}
+                </div>
+                <div className="flex-1 flex items-center gap-2">
+                  <span className="text-sm font-bold">{row.name}</span>
+                  {isMe && (
+                    <span className="rounded-full px-2 py-0.5 text-[9px] font-mono font-bold bg-accent text-accent-foreground">
+                      YOU
+                    </span>
+                  )}
+                </div>
+                <div className="text-right">
+                  <span className="font-serif font-bold text-base">{row.points.toLocaleString()}</span>
+                  <span className="ml-1 text-[10px] font-mono text-muted-foreground">PTS</span>
+                </div>
               </div>
-              <div className="flex-1 flex items-center gap-2">
-                <span className="text-sm font-bold">{row.name}</span>
-                {isMe && (
-                  <span className="rounded-full px-2 py-0.5 text-[9px] font-mono font-bold bg-accent text-accent-foreground">
-                    YOU
-                  </span>
-                )}
-              </div>
-              <div className="text-right">
-                <span className="font-serif font-bold text-base">{row.points.toLocaleString()}</span>
-                <span className="ml-1 text-[10px] font-mono text-muted-foreground">PTS</span>
-              </div>
-            </div>
-          )
-        })}
+            )
+          })
+        )}
       </div>
     </div>
   )

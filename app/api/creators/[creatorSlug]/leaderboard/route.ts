@@ -33,19 +33,23 @@ export async function GET(
             id: true,
             displayName: true,
             email: true,
+            phone: true,
           },
         },
       },
     })
 
     const leaderboard = topLinks.map((link, index) => {
-      const name = link.user.displayName || link.user.email.split('@')[0]
+      const name =
+        link.user.displayName ||
+        (link.user.email ? link.user.email.split('@')[0] : link.user.phone ? `Fan (${link.user.phone.slice(-4)})` : 'Superfan')
       const initials = name
         .split(' ')
+        .filter(Boolean)
         .map((n) => n[0])
         .join('')
         .toUpperCase()
-        .slice(0, 2)
+        .slice(0, 2) || 'SF'
 
       return {
         rank: index + 1,

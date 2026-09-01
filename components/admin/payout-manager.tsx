@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Banknote,
   CheckCircle2,
@@ -29,84 +29,73 @@ export type PayoutClaimItem = {
 }
 
 export function PayoutManager({
-  claims = [],
+  creatorSlug = 'mkurugenzi',
   onDisburseSuccess,
 }: {
-  claims?: PayoutClaimItem[]
+  creatorSlug?: string
   onDisburseSuccess: () => void
 }) {
   const [selectedClaim, setSelectedClaim] = useState<PayoutClaimItem | null>(null)
   const [referenceCode, setReferenceCode] = useState('')
   const [processing, setProcessing] = useState(false)
-  const [localClaims, setLocalClaims] = useState<PayoutClaimItem[]>(
-    claims.length > 0
-      ? claims
-      : [
-          {
-            id: 'claim-1',
-            userName: 'Kofi B. (Rank #1 Champion)',
-            rewardTitle: 'Weekly Grand Champion Cash Prize',
-            cashValue: 5000,
-            currency: 'KES',
-            payoutMethod: 'M-Pesa',
-            payoutAccount: '+254712345678',
-            status: 'pending',
-            claimedAt: 'Aug 31, 2026',
-          },
-          {
-            id: 'claim-2',
-            userName: 'Zainab M. (Rank #2)',
-            rewardTitle: 'Weekly Runner-Up Bonus',
-            cashValue: 2500,
-            currency: 'KES',
-            payoutMethod: 'M-Pesa',
-            payoutAccount: '+254798765432',
-            status: 'fulfilled',
-            claimedAt: 'Aug 24, 2026',
-            payoutReference: 'MPESA-QRT98214',
-          },
-        ],
-  )
+  const [loading, setLoading] = useState(true)
+  const [localClaims, setLocalClaims] = useState<PayoutClaimItem[]>([])
+
+  const fetchClaims = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch(`/api/admin/payouts/disburse?creatorSlug=${creatorSlug}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data.claims)) {
+          setLocalClaims(data.claims)
+        }
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchClaims()
+  }, [creatorSlug])
 
   const handleDisburse = async () => {
     if (!selectedClaim) return
     setProcessing(true)
 
     try {
-      await fetch('/api/admin/payouts/disburse', {
+      const generatedRef = referenceCode || `MPESA-${Math.random().toString(36).substring(2, 9).toUpperCase()}`
+      const res = await fetch('/api/admin/payouts/disburse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           claimId: selectedClaim.id,
-          payoutReference: referenceCode || `MPESA-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+          payoutReference: generatedRef,
           status: 'fulfilled',
         }),
       })
 
-      setLocalClaims((prev) =>
-        prev.map((c) =>
-          c.id === selectedClaim.id
-            ? {
-                ...c,
-                status: 'fulfilled',
-                payoutReference: referenceCode || `MPESA-PAYOUT-${Date.now().toString().slice(-6)}`,
-              }
-            : c,
-        ),
-      )
-
-      setSelectedClaim(null)
-      setReferenceCode('')
-      onDisburseSuccess()
+      if (res.ok) {
+        setLocalClaims((prev) =>
+          prev.map((c) =>
+            c.id === selectedClaim.id
+              ? {
+                  ...c,
+                  status: 'fulfilled',
+                  payoutReference: generatedRef,
+                }
+              : c,
+          ),
+        )
+        setSelectedClaim(null)
+        setReferenceCode('')
+        onDisburseSuccess()
+      }
     } catch {
-      setLocalClaims((prev) =>
-        prev.map((c) =>
-          c.id === selectedClaim.id
-            ? { ...c, status: 'fulfilled', payoutReference: 'MPESA-DEMO-PAID' }
-            : c,
-        ),
-      )
-      setSelectedClaim(null)
+      // ignore
     } finally {
       setProcessing(false)
     }
@@ -124,7 +113,7 @@ export function PayoutManager({
     <div className="space-y-6">
       {/* Top Monetization Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <div className="neu-card p-5 border border-border/80">
+        <div className="neu-card p-5 border border-border/80 bg-card">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-mono font-bold uppercase text-muted-foreground">
               Total Prizes Disbursed
@@ -134,7 +123,7 @@ export function PayoutManager({
           <p className="font-serif text-2xl font-bold text-foreground">
             KES {totalPaid.toLocaleString()}
           </p>
-          <p className="text-[9px] font-mono text-muted-foreground mt-0.5">COMPLETED WINNER TRANSFERS</p>
+          <p className="text-[9px] font-mono text-muted-foreground mt-0.5">LIVE COMPLETED WINNER TRANSFERS</p>
         </div>
 
         <div className="neu-card p-5 border border-accent/30 bg-card ruby-glow">
@@ -147,13 +136,13 @@ export function PayoutManager({
           <p className="font-serif text-2xl font-bold text-accent">
             KES {totalPending.toLocaleString()}
           </p>
-          <p className="text-[9px] font-mono text-muted-foreground mt-0.5">AWAITING DISBURSEMENT</p>
+          <p className="text-[9px] font-mono text-muted-foreground mt-0.5">AWAITING RECEIPT APPROVAL</p>
         </div>
 
-        <div className="neu-card p-5 border border-border/80">
+        <div className="neu-card p-5 border border-border/80 bg-card">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-mono font-bold uppercase text-muted-foreground">
-              Supported Payout Rails
+              Connected Cash Rails
             </span>
             <CreditCard className="size-4 text-accent" />
           </div>
@@ -163,82 +152,107 @@ export function PayoutManager({
       </div>
 
       {/* Claims Table */}
-      <div className="neu-card p-6 border border-border/80">
+      <div className="neu-card p-6 border border-border/80 bg-card">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="font-serif text-xl font-bold">Winner Payout Queue</h3>
             <p className="text-xs text-muted-foreground font-mono">
-              REVIEW AND DISBURSE CASH REWARDS FOR TOP-RANKED FAN CHAMPIONS
+              REAL-TIME DISBURSEMENT QUEUE FROM NEON POSTGRESQL
             </p>
           </div>
-          <span className="rounded-full px-3 py-1 neu-pill-inset text-xs font-mono text-accent font-bold">
-            {localClaims.filter((c) => c.status === 'pending').length} PENDING
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchClaims}
+              disabled={loading}
+              title="Refresh queue"
+              className="p-1.5 rounded-lg neu-raised-xs border border-border text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <span className="rounded-full px-3 py-1 neu-pill-inset text-xs font-mono text-accent font-bold">
+              {localClaims.filter((c) => c.status === 'pending').length} PENDING
+            </span>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-border/60 font-mono uppercase text-muted-foreground text-[10px]">
-                <th className="pb-3 pl-2">Winner</th>
-                <th className="pb-3">Prize / Perk</th>
-                <th className="pb-3">Amount</th>
-                <th className="pb-3">Payout Destination</th>
-                <th className="pb-3">Status</th>
-                <th className="pb-3 text-right pr-2">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/40">
-              {localClaims.map((claim) => (
-                <tr key={claim.id} className="hover:bg-muted/30">
-                  <td className="py-3.5 pl-2 font-semibold text-foreground">
-                    <div className="flex items-center gap-2">
-                      <Trophy className="size-3.5 text-accent" />
-                      <span>{claim.userName}</span>
-                    </div>
-                  </td>
-                  <td className="py-3.5 text-muted-foreground">{claim.rewardTitle}</td>
-                  <td className="py-3.5 font-mono font-bold text-accent">
-                    {claim.currency} {claim.cashValue.toLocaleString()}
-                  </td>
-                  <td className="py-3.5 font-mono">
-                    <span className="text-[10px] text-muted-foreground block">{claim.payoutMethod}</span>
-                    <span className="font-semibold text-foreground">{claim.payoutAccount}</span>
-                  </td>
-                  <td className="py-3.5">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-mono font-bold ${
-                        claim.status === 'fulfilled'
-                          ? 'bg-accent/15 text-accent border border-accent/30'
-                          : 'bg-destructive/15 text-destructive border border-destructive/30'
-                      }`}
-                    >
-                      {claim.status === 'fulfilled' ? 'Paid' : 'Pending'}
-                    </span>
-                    {claim.payoutReference && (
-                      <span className="block text-[9px] font-mono text-muted-foreground mt-0.5">
-                        Ref: {claim.payoutReference}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3.5 text-right pr-2">
-                    {claim.status === 'pending' ? (
-                      <button
-                        onClick={() => setSelectedClaim(claim)}
-                        className="neu-button-primary rounded-xl px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5"
-                      >
-                        <Send className="size-3" />
-                        <span>Disburse</span>
-                      </button>
-                    ) : (
-                      <span className="text-[10px] font-mono text-muted-foreground">Processed</span>
-                    )}
-                  </td>
+        {loading ? (
+          <div className="py-12 text-center text-xs font-mono text-muted-foreground">
+            <RefreshCw className="size-5 animate-spin mx-auto mb-2 text-accent" />
+            Loading live payout queue...
+          </div>
+        ) : localClaims.length === 0 ? (
+          <div className="py-12 text-center rounded-2xl neu-inset-xs border border-border/60">
+            <Trophy className="size-8 mx-auto mb-2 text-muted-foreground/50" />
+            <p className="font-serif text-sm font-bold text-foreground">No Pending Claims</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+              When superfans reach the required points on the live leaderboard and claim cash prizes, their payout records appear here instantly.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-border/60 font-mono uppercase text-muted-foreground text-[10px]">
+                  <th className="pb-3 pl-2">Winner</th>
+                  <th className="pb-3">Prize / Perk</th>
+                  <th className="pb-3">Amount</th>
+                  <th className="pb-3">Payout Destination</th>
+                  <th className="pb-3">Status</th>
+                  <th className="pb-3 text-right pr-2">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {localClaims.map((claim) => (
+                  <tr key={claim.id} className="hover:bg-muted/30">
+                    <td className="py-3.5 pl-2 font-semibold text-foreground">
+                      <div className="flex items-center gap-2">
+                        <Trophy className="size-3.5 text-accent" />
+                        <span>{claim.userName}</span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 text-muted-foreground">{claim.rewardTitle}</td>
+                    <td className="py-3.5 font-mono font-bold text-accent">
+                      {claim.currency} {claim.cashValue.toLocaleString()}
+                    </td>
+                    <td className="py-3.5 font-mono">
+                      <span className="text-[10px] text-muted-foreground block">{claim.payoutMethod}</span>
+                      <span className="font-semibold text-foreground">{claim.payoutAccount}</span>
+                    </td>
+                    <td className="py-3.5">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-mono font-bold ${
+                          claim.status === 'fulfilled'
+                            ? 'bg-accent/15 text-accent border border-accent/30'
+                            : 'bg-destructive/15 text-destructive border border-destructive/30'
+                        }`}
+                      >
+                        {claim.status === 'fulfilled' ? 'Paid' : 'Pending'}
+                      </span>
+                      {claim.payoutReference && (
+                        <span className="block text-[9px] font-mono text-muted-foreground mt-0.5">
+                          Ref: {claim.payoutReference}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 text-right pr-2">
+                      {claim.status === 'pending' ? (
+                        <button
+                          onClick={() => setSelectedClaim(claim)}
+                          className="neu-button-primary rounded-xl px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5"
+                        >
+                          <Send className="size-3" />
+                          <span>Disburse</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-mono text-muted-foreground">Processed</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Disburse Confirmation Modal */}
