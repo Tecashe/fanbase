@@ -33,9 +33,36 @@ function RegisterForm() {
   const [verificationCode, setVerificationCode] = useState('')
   const [generatedCode, setGeneratedCode] = useState('')
   const [loading, setLoading] = useState(false)
+  const [checkingExistingSession, setCheckingExistingSession] = useState(true)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  // Auto-check if user already has an active stored session
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const res = await fetch(`/api/auth/me?creatorSlug=${creatorSlug}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.authenticated && data.user) {
+            console.log('[Campfire Auth Client] Active session found on register page for:', data.user.displayName)
+            const target =
+              redirectPath === '/app' || redirectPath === '/dashboard'
+                ? `/dashboard/${data.user?.slug || 'fan'}`
+                : redirectPath
+            router.replace(target)
+            return
+          }
+        }
+      } catch {
+        // Continue to show register form
+      } finally {
+        setCheckingExistingSession(false)
+      }
+    }
+    checkSession()
+  }, [creatorSlug, redirectPath, router])
 
   useEffect(() => {
     if (refCode) {
@@ -161,6 +188,19 @@ function RegisterForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (checkingExistingSession) {
+    return (
+      <div className="w-full max-w-md neu-card p-8 border border-border/90 bg-card text-center space-y-4">
+        <div className="grid size-12 place-items-center rounded-2xl bg-card neu-raised border border-border mx-auto text-accent animate-pulse">
+          <Flame className="size-6 text-accent" />
+        </div>
+        <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
+          Checking Active Session...
+        </p>
+      </div>
+    )
   }
 
   return (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -30,9 +30,36 @@ function LoginForm() {
   const [verificationCode, setVerificationCode] = useState('')
   const [codeSent, setCodeSent] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [checkingExistingSession, setCheckingExistingSession] = useState(true)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  // Auto-check if user already has an active stored session
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const res = await fetch(`/api/auth/me?creatorSlug=${creatorSlug}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.authenticated && data.user) {
+            console.log('[Campfire Auth Client] Active session found for:', data.user.displayName)
+            const target =
+              redirectPath === '/app' || redirectPath === '/dashboard'
+                ? `/dashboard/${data.user?.slug || 'fan'}`
+                : redirectPath
+            router.replace(target)
+            return
+          }
+        }
+      } catch {
+        // Continue to show login form
+      } finally {
+        setCheckingExistingSession(false)
+      }
+    }
+    checkSession()
+  }, [creatorSlug, redirectPath, router])
 
   const showToast = (msg: string) => {
     setToastMessage(msg)
@@ -149,6 +176,19 @@ function LoginForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (checkingExistingSession) {
+    return (
+      <div className="w-full max-w-md neu-card p-8 border border-border/90 bg-card text-center space-y-4">
+        <div className="grid size-12 place-items-center rounded-2xl bg-card neu-raised border border-border mx-auto text-accent animate-pulse">
+          <Flame className="size-6 text-accent" />
+        </div>
+        <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
+          Checking Active Session...
+        </p>
+      </div>
+    )
   }
 
   return (

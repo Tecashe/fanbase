@@ -41,11 +41,24 @@ import {
 export default function LandingPage() {
   const [isDark, setIsDark] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const [authUser, setAuthUser] = useState<{ displayName: string; slug?: string } | null>(null)
 
   // Interactive Live Demo state on landing page
   const [demoSelected, setDemoSelected] = useState<number | null>(null)
   const [demoSubmitted, setDemoSubmitted] = useState(false)
   const [faqOpen, setFaqOpen] = useState<number | null>(0)
+
+  useEffect(() => {
+    // Check if user already has an active stored session
+    fetch('/api/auth/me?creatorSlug=mkurugenzi')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.authenticated && data?.user) {
+          setAuthUser(data.user)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -173,20 +186,32 @@ export default function LandingPage() {
               )}
             </button>
 
-            <Link
-              href="/login"
-              className="neu-button hidden sm:inline-flex rounded-xl px-3.5 py-1.5 text-xs font-bold text-foreground"
-            >
-              Sign In
-            </Link>
+            {authUser ? (
+              <Link
+                href={`/dashboard/${authUser.slug || 'fan'}`}
+                className="neu-button-primary rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5"
+              >
+                <span>Dashboard</span>
+                <ArrowRight className="size-3" />
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="neu-button hidden sm:inline-flex rounded-xl px-3.5 py-1.5 text-xs font-bold text-foreground"
+                >
+                  Sign In
+                </Link>
 
-            <Link
-              href="/register"
-              className="neu-button-primary rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5"
-            >
-              <span>Get Started</span>
-              <ArrowRight className="size-3" />
-            </Link>
+                <Link
+                  href="/register"
+                  className="neu-button-primary rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5"
+                >
+                  <span>Get Started</span>
+                  <ArrowRight className="size-3" />
+                </Link>
+              </>
+            )}
           </div>
         </header>
       </div>
@@ -218,20 +243,32 @@ export default function LandingPage() {
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link
-                href="/register"
-                className="w-full sm:w-auto neu-button-primary rounded-xl px-8 py-4 text-sm font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2.5"
-              >
-                <span>Join Official Fan Club</span>
-                <ArrowRight className="size-4" />
-              </Link>
-              <Link
-                href="/app"
-                className="w-full sm:w-auto neu-button rounded-xl px-8 py-4 text-sm font-bold tracking-wide text-foreground inline-flex items-center justify-center gap-2"
-              >
-                <Play className="size-4 text-accent" />
-                <span>Enter Dashboard</span>
-              </Link>
+              {authUser ? (
+                <Link
+                  href={`/dashboard/${authUser.slug || 'fan'}`}
+                  className="w-full sm:w-auto neu-button-primary rounded-xl px-8 py-4 text-sm font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2.5"
+                >
+                  <span>Continue to Dashboard ({authUser.displayName})</span>
+                  <ArrowRight className="size-4" />
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/register"
+                    className="w-full sm:w-auto neu-button-primary rounded-xl px-8 py-4 text-sm font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2.5"
+                  >
+                    <span>Join Official Fan Club</span>
+                    <ArrowRight className="size-4" />
+                  </Link>
+                  <Link
+                    href="/app"
+                    className="w-full sm:w-auto neu-button rounded-xl px-8 py-4 text-sm font-bold tracking-wide text-foreground inline-flex items-center justify-center gap-2"
+                  >
+                    <Play className="size-4 text-accent" />
+                    <span>Enter Dashboard</span>
+                  </Link>
+                </>
+              )}
             </div>
 
             {/* Trust Badges */}
