@@ -290,7 +290,7 @@ export default function CreatorRegisterPage() {
                     className="grid size-7 place-items-center rounded-lg font-bold text-xs"
                     style={{ backgroundColor: formData.brandPrimaryColor, color: '#ffffff' }}
                   >
-                    🔥
+                    <Flame className="size-3.5" />
                   </div>
                   <div>
                     <p className="font-serif font-bold text-sm leading-none">

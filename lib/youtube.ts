@@ -7,11 +7,15 @@ const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/youtube.readonly',
 ].join(' ')
 
-export function getGoogleOAuthUrl(creatorSlug: string = 'mkurugenzi', origin?: string): string {
+export function getGoogleOAuthUrl(
+  creatorSlug: string = 'mkurugenzi',
+  origin?: string,
+  role: 'fan' | 'creator' = 'fan',
+): string {
   const clientId = process.env.GOOGLE_CLIENT_ID || 'mock-google-client-id'
   const baseAppUrl = origin || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   const redirectUri = `${baseAppUrl}/api/auth/youtube/callback`
-  const state = JSON.stringify({ creatorSlug, origin: baseAppUrl })
+  const state = JSON.stringify({ creatorSlug, origin: baseAppUrl, role })
 
   const params = new URLSearchParams({
     client_id: clientId,

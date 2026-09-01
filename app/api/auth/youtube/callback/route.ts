@@ -23,12 +23,14 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${appOrigin}/login?error=${encodeURIComponent(errorParam)}`)
     }
 
+    let authRole = 'fan'
     if (state) {
       try {
         const parsed = JSON.parse(state)
         if (parsed.creatorSlug) creatorSlug = parsed.creatorSlug
         if (parsed.origin) appOrigin = parsed.origin
-        console.log('[Campfire YouTube Auth Callback] State parsed:', { creatorSlug, appOrigin })
+        if (parsed.role) authRole = parsed.role
+        console.log('[Campfire YouTube Auth Callback] State parsed:', { creatorSlug, appOrigin, authRole })
       } catch {
         console.log('[Campfire YouTube Auth Callback] State raw string:', state)
       }
@@ -90,23 +92,22 @@ export async function GET(request: Request) {
               email: normalizedEmail,
               displayName: googleProfile.name || normalizedEmail.split('@')[0],
               avatarUrl: googleProfile.picture,
-              role: 'user',
+              role: authRole === 'creator' ? 'creator' : 'user',
               emailVerified: true,
               phoneVerified: false,
             },
           })
         } else {
           console.log('[Campfire YouTube Auth Callback] Existing user found in Neon Postgres:', user.id)
-          // Update displayName and avatar from Google profile if available
-          if (googleProfile.name && (!user.displayName || user.displayName === user.email?.split('@')[0])) {
-            user = await prisma.user.update({
-              where: { id: user.id },
-              data: {
-                displayName: googleProfile.name,
-                avatarUrl: googleProfile.picture || user.avatarUrl,
-              },
-            })
-          }
+          const updatedRole = authRole === 'creator' ? 'creator' : user.role
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              displayName: googleProfile.name || user.displayName,
+              avatarUrl: googleProfile.picture || user.avatarUrl,
+              role: updatedRole,
+            },
+          })
         }
 
         authUser = {
@@ -197,9 +198,15 @@ export async function GET(request: Request) {
       }
     }
 
+    if (authRole === 'creator') {
+      console.log(`[Campfire YouTube Auth Callback] Creator flow complete. Redirecting to /admin/${creatorSlug}`)
+      console.log('----------------------------------------------------')
+      return NextResponse.redirect(`${appOrigin}/admin/${creatorSlug}`)
+    }
+
     const redirectStatus = isSubscribed ? 'subscribed' : 'unsubscribed'
     const slug = authUser ? toUserSlug(authUser.displayName, authUser.email, authUser.id) : 'fan'
-    console.log(`[Campfire YouTube Auth Callback] Flow complete. Redirecting to /dashboard/${slug}?youtube_status=${redirectStatus}`)
+    console.log(`[Campfire YouTube Auth Callback] Fan flow complete. Redirecting to /dashboard/${slug}?youtube_status=${redirectStatus}`)
     console.log('----------------------------------------------------')
 
     return NextResponse.redirect(`${appOrigin}/dashboard/${slug}?youtube_status=${redirectStatus}`)

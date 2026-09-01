@@ -652,7 +652,7 @@ export default function CreatorStudio({
                         className="grid size-7 place-items-center rounded-lg font-bold text-xs"
                         style={{ backgroundColor: creator.brandPrimaryColor, color: '#ffffff' }}
                       >
-                        🔥
+                        <Flame className="size-3.5" />
                       </div>
                       <span className="font-serif font-bold text-sm">{creator.displayName} Campfire</span>
                     </div>
@@ -1053,15 +1053,17 @@ export default function CreatorStudio({
 
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[
-                  { title: 'First Flame', criteria: 'Complete 1st quest', icon: '🔥' },
-                  { title: '7-Day Spark', criteria: '7-day active streak', icon: '⚡' },
-                  { title: 'YouTube Superfan', criteria: 'Verified YouTube Subscriber', icon: '🏆' },
-                  { title: 'Circle Ambassador', criteria: '3 verified referrals', icon: '👥' },
-                  { title: 'Top 10 Contender', criteria: 'Reach Top 10 rank', icon: '⭐' },
-                  { title: 'Watch Party Veteran', criteria: '3 episode watch confirmations', icon: '👁️' },
+                  { title: 'First Flame', criteria: 'Complete 1st quest', Icon: Flame },
+                  { title: '7-Day Spark', criteria: '7-day active streak', Icon: Zap },
+                  { title: 'YouTube Superfan', criteria: 'Verified YouTube Subscriber', Icon: Trophy },
+                  { title: 'Circle Ambassador', criteria: '3 verified referrals', Icon: Users },
+                  { title: 'Top 10 Contender', criteria: 'Reach Top 10 rank', Icon: Award },
+                  { title: 'Watch Party Veteran', criteria: '3 episode watch confirmations', Icon: Eye },
                 ].map((b, i) => (
                   <div key={i} className="p-5 rounded-2xl neu-raised-sm border border-border bg-card">
-                    <div className="text-2xl mb-2">{b.icon}</div>
+                    <div className="grid size-9 place-items-center rounded-xl bg-card neu-inset-xs text-accent mb-3">
+                      <b.Icon className="size-4.5" />
+                    </div>
                     <h4 className="font-serif text-base font-bold">{b.title}</h4>
                     <p className="text-xs font-mono text-accent mt-1">{b.criteria}</p>
                     <span className="block text-[9px] font-mono text-muted-foreground mt-2">ACTIVE TEMPLATE</span>
@@ -1176,11 +1178,23 @@ export default function CreatorStudio({
 
               <div className="p-6 rounded-2xl neu-inset-sm border border-border bg-card space-y-4">
                 <h3 className="font-serif text-lg font-bold">Audience Metrics Included in Report:</h3>
-                <ul className="text-xs space-y-2 text-muted-foreground font-mono">
-                  <li>✔ Total 100% Google OAuth Verified YouTube Subscribers</li>
-                  <li>✔ Exact Episode Recall Quiz Completion Rate ({analytics.completionRate})</li>
-                  <li>✔ Organic Social Media Share Counts ({analytics.totalShares} Shares)</li>
-                  <li>✔ Live Leaderboard Engagement Volume</li>
+                <ul className="text-xs space-y-2.5 text-muted-foreground font-mono">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-accent shrink-0" />
+                    <span>Total 100% Google OAuth Verified YouTube Subscribers</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-accent shrink-0" />
+                    <span>Exact Episode Recall Quiz Completion Rate ({analytics.completionRate})</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-accent shrink-0" />
+                    <span>Organic Social Media Share Counts ({analytics.totalShares} Shares)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-accent shrink-0" />
+                    <span>Live Leaderboard Engagement Volume</span>
+                  </li>
                 </ul>
               </div>
             </div>
