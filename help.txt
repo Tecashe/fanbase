@@ -1,0 +1,437 @@
+v0 Build Prompt: Multi-Tenant Creator Fan Engagement Platform
+
+Copy everything below into v0 as your starting prompt. It's written to front-load the architectural decisions so v0 scaffolds a whitelabel-ready foundation instead of a single-creator app you'd have to rebuild later.
+
+PROMPT TO PASTE INTO V0
+Build a Next.js 14+ (App Router) web application called a "Creator Fan Engagement Platform" — 
+a multi-tenant SaaS product that lets YouTube content creators run subscriber-gated quizzes, 
+leaderboards, and rewards programs for their audience. Think "Kahoot meets fan club," but 
+white-labeled per creator from day one.
+
+## CORE ARCHITECTURAL REQUIREMENT: MULTI-TENANCY FIRST
+
+This is NOT a single-creator app. Even though we're launching with one creator, every table, 
+route, and component must be built as if there are hundreds of creators (tenants) on this 
+platform. Concretely:
+
+- Every data model must include a `creator_id` (tenant identifier) foreign key.
+- Routing must support per-creator subdomains or path-based tenancy, e.g. 
+  `mkurugenzi.platform.com` or `platform.com/mkurugenzi` — implement path-based routing 
+  for now (`/[creatorSlug]/...`) but structure the middleware so subdomain routing can be 
+  swapped in later without a rewrite.
+- Each creator has a "workspace" with their own branding (logo, primary/secondary colors, 
+  channel name, welcome copy) stored in a `creators` table and applied via CSS variables / 
+  a theme provider — no hardcoded creator names or colors anywhere in the UI.
+- Build a `creator_id` scoping helper/middleware that every database query passes through, 
+  so it's structurally difficult to accidentally leak one creator's data into another's view.
+
+## TECH STACK
+
+- Next.js 14+ App Router, TypeScript, Tailwind CSS
+- Database: Postgres via Supabase (use Supabase client + Supabase Auth as the base for user 
+  accounts — it also gives us row-level security which is perfect for multi-tenant isolation)
+- Use Supabase Row Level Security (RLS) policies scoped by creator_id on every table — 
+  scaffold example RLS policies in SQL comments even if you can't execute them directly
+- Auth: Supabase Auth for account creation/login, PLUS a separate YouTube OAuth connection 
+  flow (see below) — a user's platform login and their YouTube subscription check are 
+  separate concerns
+- State: React Server Components by default, Zustand only for client-side interactive state 
+  (quiz-taking flow, live leaderboard updates)
+- Deployment target: Vercel
+
+## DATA MODELS (design these as Supabase/Postgres tables)
+
+1. **creators** — id, slug (url-safe, e.g. "mkurugenzi"), display_name, youtube_channel_id, 
+   logo_url, brand_primary_color, brand_secondary_color, welcome_message, reward_program_type 
+   (enum: weekly/monthly/annual/custom), status (active/pending/suspended), created_at
+
+2. **users** — id (from Supabase Auth), email, display_name, avatar_url, created_at
+
+3. **user_creator_links** — id, user_id, creator_id, youtube_subscription_verified (boolean), 
+   youtube_verified_at (timestamp), subscription_check_expires_at (timestamp — subscription 
+   status should be periodically re-verified, not checked once and trusted forever), points_balance, 
+   current_streak, longest_streak, joined_at
+   — this is the join table representing "this user is a verified fan of this creator"
+
+4. **stories** — id, creator_id, title, youtube_video_id, description, aired_date, 
+   transcript_or_notes (text, used to generate quiz questions), created_at
+   — represents one piece of source content (one video/story) a quiz can be based on
+
+5. **quizzes** — id, creator_id, story_id (nullable — some quizzes span multiple stories), 
+   title, quiz_type (enum: story_recall/prediction/speed_bonus), points_value, 
+   available_from, available_until, is_active, created_at
+
+6. **quiz_questions** — id, quiz_id, question_text, question_order, points_value
+   
+7. **quiz_answer_options** — id, question_id, option_text, is_correct
+
+8. **quiz_attempts** — id, quiz_id, user_id, creator_id, started_at, completed_at, 
+   score, time_taken_seconds, points_earned
+
+9. **quiz_attempt_answers** — id, attempt_id, question_id, selected_option_id, is_correct
+
+10. **rewards** — id, creator_id, title, description, reward_type (enum: weekly/monthly/annual/
+    milestone), points_required OR rank_required (e.g. "top 10 this week"), quantity_available, 
+    period_start, period_end, status
+
+11. **reward_claims** — id, reward_id, user_id, claimed_at, fulfillment_status 
+    (pending/fulfilled/expired)
+
+12. **leaderboard_snapshots** — id, creator_id, period_type (weekly/monthly/annual), 
+    period_start, period_end, user_id, rank, points, generated_at
+    — pre-computed leaderboard snapshots so the leaderboard page is fast and historical 
+    leaderboards can be shown even after a period ends
+
+13. **referrals** — id, creator_id, referrer_user_id, referred_user_id, points_awarded, created_at
+
+14. **notifications_log** — id, creator_id, user_id, type, sent_at, opened_at (for tracking 
+    engagement on "new quiz is live" style notifications later)
+
+15. **story_views** — id, creator_id, story_id, user_id, watched_confirmation (boolean), 
+    confirmed_at — backs the "watch-to-unlock" gating and gives the creator real 
+    story-by-story engagement data for their analytics dashboard
+
+16. **share_events** — id, creator_id, user_id, quiz_attempt_id, share_platform 
+    (whatsapp/instagram/x/other), shared_at — tracks how often result cards get shared, 
+    which is itself a metric worth showing the creator ("your fans generated N shares 
+    this month")
+
+17. **badges** — id, creator_id, title, description, icon_url, criteria_type 
+    (story_arc_complete/streak/milestone/custom), criteria_config (jsonb — flexible 
+    enough to define "answered all questions on story X correctly" or "30-day streak" 
+    without a schema change per badge type)
+
+18. **user_badges** — id, user_id, badge_id, awarded_at
+
+Add these fields to existing tables to support analytics/reporting later without a 
+migration:
+- `quiz_attempts` — add `device_type` and `referrer_source` (nullable text) so drop-off 
+  and traffic-source analysis is possible later
+- `user_creator_links` — add `last_active_at` (for engagement recency in the CRM view)
+
+## KEY FLOWS TO BUILD
+
+### 1. Creator Onboarding (admin-facing, simple version for now)
+A basic `/admin/[creatorSlug]` dashboard (auth-gated to platform admins for now — assume 
+we manually onboard creators at first) where a creator or platform admin can:
+- Set up branding (logo upload, color pickers, welcome message)
+- Add stories (title, YouTube video ID, description/notes used to write quiz questions)
+- Create quizzes and add questions/answers to them
+- Define reward periods and rewards
+- View a simple analytics view: total verified fans, quiz completion rates, points distributed
+
+### 2. Fan Sign-Up + YouTube Subscription Verification
+This is the critical gating mechanism, build it carefully:
+- User lands on `/[creatorSlug]`, sees creator-branded landing page
+- User signs up / logs in via Supabase Auth (email or Google login)
+- User is prompted to "Connect your YouTube account to verify subscription"
+- This triggers a SEPARATE Google OAuth flow requesting the 
+  `https://www.googleapis.com/auth/youtube.readonly` scope
+- On callback, use the YouTube Data API v3 `subscriptions.list` endpoint with `mine=true` 
+  and `forChannelId={creator's youtube_channel_id}` to check if the user is subscribed
+- Store the result in `user_creator_links.youtube_subscription_verified` with a timestamp
+- IMPORTANT: Build this as a re-verifiable check, not a one-time gate. Add a scheduled 
+  re-check (e.g. every 30 days) since users can unsubscribe later. Structure the code so 
+  a cron job (Vercel Cron or Supabase Edge Function) can re-run this check per user.
+- If NOT subscribed: show a friendly screen with a "Subscribe on YouTube" button (deep link 
+  to the channel) and a "I just subscribed, check again" button that re-triggers the check 
+  (with basic rate-limiting so it can't be spammed)
+- Gracefully handle YouTube API quota errors — show a "we're verifying, check back shortly" 
+  state rather than a hard error, since the YouTube Data API has daily quota limits
+
+### 3. Quiz Taking Flow
+- List of active quizzes for the creator, each showing points available, time remaining, 
+  and whether the user has already attempted it (one attempt per quiz per user, enforce 
+  this server-side, not just in the UI)
+- Quiz-taking UI: one question at a time, multiple choice, a visible timer if it's a 
+  "speed_bonus" type quiz (bonus points for faster completion)
+- On submission, calculate score server-side (never trust client-submitted scores), 
+  award points to `user_creator_links.points_balance`, log the attempt
+- Show results immediately: score, correct answers, points earned, and where this puts 
+  them on the leaderboard
+
+### 4. Leaderboard
+- Per-creator, tabbed by period (weekly / monthly / all-time / annual)
+- Show rank, display name, avatar, points
+- Highlight the current user's row even if they're not in the visible top N
+- Design this to be computed from `leaderboard_snapshots` (pre-aggregated) for performance, 
+  not a live SUM() query across all quiz attempts every page load
+
+### 5. Rewards Page
+- Show active reward periods, what's up for grabs, and progress toward eligibility 
+  (e.g. "you're rank #14, top 10 win this week's reward")
+- Show past rewards won by the user (their own claim history)
+- For milestone-based rewards (e.g. "reach 500 points"), show a progress bar
+
+### 6. Referral System
+- Each user gets a unique referral link/code per creator
+- New sign-ups via that link, once they complete YouTube verification, award points to 
+  both the referrer and the new user
+- Simple referral stats view: how many people you've referred, points earned from referrals
+
+## CREATOR DASHBOARD — FULL DETAILED SPEC (expands and replaces the brief "Creator Onboarding" section above)
+
+Every creator gets their own admin dashboard at `/admin/[creatorSlug]`, auth-gated so only 
+that creator's team can access it (support multiple admin users per creator later via a 
+`creator_admins` join table — id, creator_id, user_id, role [owner/editor/viewer] — even if 
+you only build single-admin auth for now, add the table so multi-person teams aren't a 
+schema migration later).
+
+Build the dashboard as a persistent sidebar layout with these sections. For each one, I'm 
+also specifying exactly how it connects to what the fan sees on their side — build this 
+connection explicitly, don't leave it implicit.
+
+### A. Dashboard Home / Overview
+The landing page when a creator logs in. Shows at-a-glance cards:
+- Verified fan count (with week-over-week change)
+- Active quizzes right now, and days remaining on the current reward period
+- This week's top 3 fans (name, points) — a quick pulse check
+- A "needs attention" panel: e.g. "No quiz scheduled for this week" or "Reward period ends 
+  in 2 days, no reward defined yet" — proactive nudges so the dashboard drives the creator 
+  to keep content flowing, since (as discussed) content staleness is the biggest churn risk.
+
+**Connection to fan side:** none directly — this is creator-only situational awareness, 
+pulling read-only aggregates from the same tables everything else uses.
+
+### B. Branding & Profile Setup
+Form to set: display name, logo upload, primary/secondary brand colors (with live preview 
+of the fan-facing landing page rendered in an iframe or preview pane as they adjust colors), 
+welcome message, YouTube channel ID/URL (validate this actually resolves to a real channel 
+via the YouTube API before saving).
+
+**Connection to fan side:** every value set here is read directly by the fan-facing 
+`/[creatorSlug]` landing page and the theme provider — changing the primary color here 
+should visibly change every fan-facing page for that creator, live, with no code deploy.
+
+### C. Story Library
+A table/list view of all stories (past YouTube videos) the creator has added, with add/edit/
+archive actions. Each story entry: title, YouTube video ID (with auto-fetched thumbnail via 
+YouTube API for visual confirmation they picked the right video), aired date, and a free-text 
+notes/transcript field the creator (or their team) uses as reference when writing quiz 
+questions. Show a small badge per story: "3 quizzes attached" / "no quiz yet" so it's obvious 
+which stories haven't been turned into content.
+
+**Connection to fan side:** stories themselves aren't directly fan-visible as a list — they're 
+the backing data quizzes are built from, and the `story_views` "I watched this" confirmation 
+step (Phase 1.5) references a specific story record.
+
+### D. Quiz Builder
+This is the most-used screen, so it needs to be fast and low-friction:
+- "New Quiz" flow: pick a linked story (or none, for multi-story quizzes), set title, quiz 
+  type (story_recall / prediction / speed_bonus), points value, availability window 
+  (available_from / available_until), and the `requires_watch_confirmation` toggle from 
+  Phase 1.5
+- Question builder below: add questions one at a time, each with 2-4 answer options and a 
+  clear "mark correct answer" radio — inline, no separate page navigation, since creators 
+  will often build a 5-10 question quiz in one sitting
+- A "Duplicate quiz" action, since creators will often reuse a similar structure week to week
+- A calendar/list toggle view of all quizzes past and upcoming, with status badges 
+  (draft / scheduled / live / ended) and quick stats per quiz once it has attempts 
+  (completion count, average score) — this stat should update live as attempts come in, not 
+  require a page refresh
+
+**Connection to fan side:** the instant a quiz's status flips to "live" (available_from has 
+passed and is_active is true), it appears in the fan's `/[creatorSlug]/quizzes` list. The 
+quiz builder is the single source of truth — there's no separate fan-side content creation, 
+everything the fan interacts with in a quiz originates here.
+
+### E. Reward Program Manager
+- Define reward periods (weekly/monthly/annual/custom date range) and, per period, one or 
+  more rewards with either a points threshold ("first 50 people to hit 200 points") or a 
+  rank threshold ("top 10 on the leaderboard this period")
+- A simple fulfillment queue: once a period ends, show the list of qualifying winners with 
+  contact info (from their linked account) and a status toggle (pending → fulfilled) so the 
+  creator can track who's actually been sent their reward — this is important, don't skip it, 
+  unfulfilled rewards are a fast way to lose trust with fans
+- Reward history view, so the creator (and eventually sponsors, via the export) can see past 
+  reward periods and how many people qualified
+
+**Connection to fan side:** the fan's `/[creatorSlug]/rewards` page reads directly from these 
+records — current period, progress bar toward eligibility, and (once fulfillment_status flips) 
+a "you won! reward is on its way" notification state on their side.
+
+### F. Fan CRM / Superfan View
+A searchable, sortable table of all verified fans for that creator: name, points balance, 
+current streak, last_active_at, join date, referral count. Support filtering (e.g. "show fans 
+inactive for 14+ days" for re-engagement targeting, or "top 100 by points" for reward/collab 
+outreach). Clicking a fan shows their individual activity history (quizzes taken, badges 
+earned, rewards won).
+
+**Connection to fan side:** read-only aggregation of data the fan already generates through 
+normal use (quiz_attempts, points_balance, last_active_at) — no new fan-facing surface, but 
+it's the dashboard view that makes the platform valuable to the creator's business (superfan 
+outreach, collab recruiting, sponsor targeting).
+
+### G. Badge Manager
+List/create/edit badges (title, icon, criteria type and config from the `badges` table). 
+Keep criteria configuration simple in the UI even though the schema is flexible — for v1, 
+support a small set of criteria templates via a form (not raw JSON editing): "complete all 
+quizzes in story X," "reach a Y-day streak," "finish in the top N for a period." 
+
+**Connection to fan side:** badges appear on the fan's profile page the moment their activity 
+satisfies the criteria — this should be checked as part of the same server-side logic that 
+scores a quiz attempt or updates a streak, not a separate batch job, so fans get the "badge 
+earned" moment right when they finish the quiz that earned it.
+
+### H. Announcements Composer
+A simple form to post an announcement (title, body, optional link) that appears in a feed on 
+the fan's dashboard — e.g. "New story drops Friday, quiz opens right after." Even without 
+push/email delivery yet (that's Phase 2), having an in-app announcement feed gives the 
+creator a direct line to engaged fans without needing YouTube comments or community posts.
+
+**Connection to fan side:** shows as a feed/banner at the top of the fan's `/[creatorSlug]` 
+dashboard, most recent first, logged to `notifications_log` with type "announcement" so it's 
+ready to plug into email/push delivery later without a schema change.
+
+### I. Analytics
+As specified in Phase 1.5 section 10 above — link it into this sidebar as its own section, 
+not a separate flow.
+
+### J. Sponsor Export
+As specified in Phase 1.5 section 11 above — accessible from the Analytics section as an 
+"Export Report" action.
+
+### K. Settings
+Team/admin management (invite additional admins via the `creator_admins` table), YouTube API 
+connection status/health (surface quota warnings here if the platform-wide quota is getting 
+tight), and eventually billing (stub this as a "Plan: Beta" display for now, no real billing 
+UI yet per the out-of-scope list).
+
+### Explicit creator-action → fan-effect mapping (build this as a mental model, not literally as code, but keep it true throughout)
+
+| Creator does this | Fan sees this |
+|---|---|
+| Sets branding colors/logo | Fan's entire `/[creatorSlug]` experience re-themes live |
+| Adds a story | Nothing directly yet — becomes available to attach a quiz to |
+| Publishes a quiz (status → live) | Quiz appears in fan's active quiz list immediately |
+| Fan completes quiz | Score/points calculated server-side, `points_balance` and 
+`leaderboard_snapshots` update, badge criteria re-checked |
+| Toggles `requires_watch_confirmation` on | Fan must confirm watching the story before that 
+quiz unlocks |
+| Defines a reward period + rewards | Fan's rewards page shows current period and their 
+progress toward each reward |
+| Marks a reward `fulfilled` | Fan's rewards page updates their claim status |
+| Creates a badge | Automatically awarded server-side the moment a fan's activity matches 
+the criteria, appears on fan's profile |
+| Posts an announcement | Appears in fan's dashboard feed, most recent first |
+| Views Fan CRM / Analytics | Read-only — fans are never aware this view exists, no fan-facing 
+surface changes |
+
+Build this table's relationships as the actual data flow — every "fan sees this" column entry 
+should be a direct read from a table the "creator does this" column entry writes to, with no 
+manual sync step in between.
+
+
+These are the features that give a creator a reason to actually pay a monthly fee, on top 
+of the fan-facing quiz/reward mechanics above. Build the schema and basic versions of these 
+now, even if the UI is simple — these are what separate "cute fan toy" from "tool the 
+creator's business depends on."
+
+### 7. Watch-to-Unlock Gating
+Add an optional setting per quiz: `requires_watch_confirmation` (boolean). When true, the 
+user must click "I watched this" (logged to `story_views`) before the quiz unlocks, OR the 
+quiz simply doesn't appear until N hours after the story's `aired_date`. This drives users 
+back to the actual YouTube video rather than letting them guess from memory, which is the 
+whole point of the tool from the creator's perspective — it should measurably move view counts.
+
+### 8. Shareable Result Cards
+After a quiz attempt, generate a shareable image (use `@vercel/og` or similar for dynamic 
+OG image generation) showing the user's score, the creator's branding, and a CTA like 
+"Think you can beat me? Take the quiz." Provide native share sheet integration 
+(`navigator.share()` with fallback to copy-link) targeting WhatsApp/Instagram/X, since 
+WhatsApp sharing in particular is a major organic growth channel for Kenyan audiences. 
+Log every share to `share_events` — this becomes a real metric to show the creator 
+("your fans generated 340 shares this month, reaching an estimated N people").
+
+### 9. Public Leaderboard Preview (Pre-Subscription)
+The top-10 leaderboard for a creator should be viewable WITHOUT requiring YouTube 
+verification — but taking quizzes and appearing on it does require verification. This 
+turns the leaderboard into a subscriber-acquisition page: someone lands on it via a shared 
+link, sees the competition, and the "you need to subscribe to play" gate becomes the CTA, 
+not a wall.
+
+### 10. Creator Analytics Dashboard
+Build a `/admin/[creatorSlug]/analytics` page — this is likely the single feature most 
+responsible for a creator continuing to pay monthly, since YouTube Studio doesn't give them 
+this. Include:
+- Verified fan count over time (growth chart)
+- Quiz participation rate and completion rate per quiz
+- Most/least engaged stories (based on `story_views` and quiz attempt volume)
+- Share event counts and estimated reach
+- A ranked list of top N most engaged fans (points, streak, last_active_at) — the 
+  foundation of the "CRM-lite" superfan view
+- All of this scoped strictly to that creator via the same creator_id access helper used 
+  elsewhere
+
+### 11. Sponsor-Ready Export
+A simple "Export Report" button on the analytics dashboard that generates a clean PDF or 
+shareable summary page (verified fan count, weekly active participants, completion rate, 
+share/reach numbers) that the creator can send to brands pitching sponsorships. Doesn't 
+need to be fancy — a well-formatted summary with the creator's branding is enough for v1.
+
+### 12. Badges / Collectibles
+Simple badge system using the `badges` / `user_badges` tables above — award badges for 
+things like completing all quizzes in a story arc, hitting a streak milestone, or being 
+in the top 10 for a period. Display badges on the user's profile within the creator's 
+space. Cheap to build, meaningfully increases long-term retention for completionist-type 
+fans.
+
+## DESIGN / UX DIRECTION
+
+- Mobile-first — assume most traffic comes from a phone, often from a link in a YouTube 
+  video description or a WhatsApp share, on a mobile data connection. Keep bundle size lean, 
+  avoid heavy unnecessary images.
+- Make it feel like a fan club, not a corporate dashboard — playful, energetic, uses the 
+  creator's brand colors prominently, celebratory micro-interactions on correct answers / 
+  points earned / leaderboard climbs (confetti-style feedback is welcome for scoring moments)
+- Build it as an installable PWA (manifest.json, service worker for basic offline shell) 
+  so it can be "added to home screen" and feel app-like without requiring a native app yet
+- Design the landing page (`/[creatorSlug]`) to be a strong conversion page for someone 
+  arriving cold from a video description link: clearly explain "subscribe + play quizzes 
+  + win rewards" in one glance
+
+## NON-FUNCTIONAL REQUIREMENTS
+
+- Every server action / API route must check and scope by creator_id — write a reusable 
+  `requireCreatorAccess()` or similar helper and use it consistently
+- Rate-limit the YouTube re-verification endpoint per user (e.g. max 1 check per 5 minutes) 
+  to avoid burning API quota
+- Structure environment variables so YouTube API credentials, Supabase credentials, etc. 
+  are cleanly separated and documented in a `.env.example`
+- Add loading and error states everywhere data is fetched — assume flaky mobile connections
+- Write the codebase so a second creator could be onboarded by an admin without touching 
+  code — purely through the admin dashboard and database records
+
+## WHAT NOT TO BUILD YET (explicitly out of scope for this pass)
+
+- Payment processing / paid tiers for the platform itself (design the schema to allow it 
+  later, e.g. a `plan_tier` field on creators, but don't build checkout flows now)
+- Native mobile app (this is web-only, but should feel app-like via PWA)
+- Automated quiz-question generation from video transcripts (for now, admins manually enter 
+  questions — leave a comment noting this could later be AI-assisted)
+- Push notifications and email/SMS digests (log the intent in `notifications_log` schema 
+  and design `story_views`/quiz-live timestamps so a digest job could be built later, but 
+  don't build delivery yet — this is a strong Phase 2 candidate)
+- Live synchronized "watch party" quiz mode (schema supports scheduled quizzes via 
+  `available_from`, but real-time synchronized sessions are a later build)
+- Merch/tip payments inside the app (note this as a future revenue stream but don't build 
+  checkout now)
+- UGC story submissions from fans (worth flagging as a strong Phase 2 idea for creators 
+  who rely on audience-submitted stories, but not in this build)
+
+Start by scaffolding the project structure, the Supabase schema (as SQL), and the 
+`/[creatorSlug]` landing page with the branding theme system, then build outward from there.
+A few notes before you paste this in
+
+On the YouTube OAuth quota: the free daily quota Google gives you is modest. subscriptions.list calls cost quota units. If Mkurugenzi's audience is large, plan for the possibility of hitting quota limits during a viral moment — the prompt above builds in graceful degradation for that, but it's worth knowing going in. You can request a quota increase from Google once you have real usage data to justify it.
+
+On Supabase RLS: v0 may or may not fully implement Row Level Security policies correctly on the first pass — this is genuinely one of the trickier parts of multi-tenant Supabase apps. Once you have the schema, it's worth asking me (or v0 in a follow-up prompt) to specifically review and harden the RLS policies before you put real user data through it.
+
+On splitting this into multiple prompts: v0 tends to do better with a first pass that's slightly narrower, then iterative follow-ups. If the full prompt above produces something overwhelming or incomplete, a good split is:
+
+First prompt: schema + auth + creator theming + landing page
+Second prompt: quiz-taking flow + scoring
+Third prompt: leaderboard + rewards + referrals
+Fourth prompt: admin dashboard
+
+Want me to break it into that four-part sequence instead, so you paste them into v0 one at a time as each layer stabilizes?

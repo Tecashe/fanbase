@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import DashboardLayout from '@/components/dashboard/dashboard-layout'
+import CreatorPortal from '@/components/public/creator-portal'
 import { prisma } from '@/lib/db'
 
 export async function generateMetadata({
@@ -39,7 +39,8 @@ export default async function CreatorPage({
         </div>
       }
     >
-      <DashboardLayout creatorSlug={creatorSlug} />
+      <CreatorPortal creatorSlug={creatorSlug} />
     </Suspense>
   )
 }
+

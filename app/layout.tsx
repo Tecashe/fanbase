@@ -24,6 +24,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'Campfire — Tactile Creator Fan Club & Quests',
   description: 'Subscribe, play weekly quests, climb the ranks, and win rewards in a tactile neumorphic experience.',
+  manifest: '/manifest.json',
   generator: 'Antigravity',
 }
 
