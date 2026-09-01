@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
 import { hashPassword, createSession, AUTH_COOKIE_NAME } from '@/lib/custom-auth'
+import { toUserSlug } from '@/lib/slug'
 
 export async function POST(request: Request) {
   try {
@@ -74,15 +75,19 @@ export async function POST(request: Request) {
       if (creator) {
         let initialPoints = 100
 
-        // 4. Handle Referral Attribution
+        // 4. Handle Referral Attribution (supports user ID, email, phone, or slugified name)
         let validReferrer = null
         if (referrerId) {
+          const cleanRef = referrerId.trim()
+          const unhyphenated = cleanRef.replace(/-/g, ' ')
           validReferrer = await prisma.user.findFirst({
             where: {
               OR: [
-                { id: referrerId },
-                { email: referrerId.toLowerCase().trim() },
-                { phone: referrerId.replace(/\s+/g, '') },
+                { id: cleanRef },
+                { email: cleanRef.toLowerCase() },
+                { phone: cleanRef.replace(/\s+/g, '') },
+                { displayName: { equals: cleanRef, mode: 'insensitive' } },
+                { displayName: { equals: unhyphenated, mode: 'insensitive' } },
               ],
             },
           })
@@ -152,10 +157,13 @@ export async function POST(request: Request) {
       maxAge: 30 * 24 * 60 * 60,
     })
 
+    const userSlug = toUserSlug(user.displayName, user.email || user.phone, user.id)
+
     return NextResponse.json({
       success: true,
       user: {
         id: user.id,
+        slug: userSlug,
         email: user.email,
         phone: user.phone,
         displayName: user.displayName,

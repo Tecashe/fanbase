@@ -147,8 +147,12 @@ function RegisterForm() {
 
       console.log('[Campfire Auth Client] User registered successfully! Redirecting...')
       showToast('Account created successfully! Redirecting to dashboard...')
+      const target =
+        redirectPath === '/app' || redirectPath === '/dashboard'
+          ? `/dashboard/${regData.user?.slug || 'fan'}`
+          : redirectPath
       setTimeout(() => {
-        router.push(redirectPath)
+        router.push(target)
         router.refresh()
       }, 500)
     } catch (err: unknown) {

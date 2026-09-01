@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { getAuthUser, createSession, AUTH_COOKIE_NAME } from '@/lib/custom-auth'
 import { prisma } from '@/lib/db'
 import { verifyYouTubeSubscription, getGoogleUserProfile } from '@/lib/youtube'
+import { toUserSlug } from '@/lib/slug'
 
 export async function GET(request: Request) {
   const startTime = Date.now()
@@ -174,10 +175,11 @@ export async function GET(request: Request) {
     }
 
     const redirectStatus = isSubscribed ? 'subscribed' : 'unsubscribed'
-    console.log(`[Campfire YouTube Auth Callback] Flow complete. Redirecting to /app?youtube_status=${redirectStatus}`)
+    const slug = authUser ? toUserSlug(authUser.displayName, authUser.email, authUser.id) : 'fan'
+    console.log(`[Campfire YouTube Auth Callback] Flow complete. Redirecting to /dashboard/${slug}?youtube_status=${redirectStatus}`)
     console.log('----------------------------------------------------')
 
-    return NextResponse.redirect(`${appOrigin}/app?youtube_status=${redirectStatus}`)
+    return NextResponse.redirect(`${appOrigin}/dashboard/${slug}?youtube_status=${redirectStatus}`)
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'YouTube auth failed'
     console.error('[Campfire YouTube Auth Callback Error]:', errorMsg)

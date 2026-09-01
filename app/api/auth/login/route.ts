@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
 import { verifyPassword, createSession, AUTH_COOKIE_NAME } from '@/lib/custom-auth'
+import { toUserSlug } from '@/lib/slug'
 
 export async function POST(request: Request) {
   console.log('[Campfire Auth Server] Password Login attempt received')
@@ -116,10 +117,13 @@ export async function POST(request: Request) {
 
     console.log('[Campfire Auth Server] Login SUCCESS for user:', user.id, user.email || user.phone)
 
+    const userSlug = toUserSlug(user.displayName, user.email || user.phone, user.id)
+
     return NextResponse.json({
       success: true,
       user: {
         id: user.id,
+        slug: userSlug,
         email: user.email,
         phone: user.phone,
         displayName: user.displayName,

@@ -113,8 +113,12 @@ function LoginForm() {
 
         console.log('[Campfire Auth Client] Code verified! Authenticated user:', data.user)
         showToast('Verification successful. Redirecting to dashboard...')
+        const target =
+          redirectPath === '/app' || redirectPath === '/dashboard'
+            ? `/dashboard/${data.user?.slug || 'fan'}`
+            : redirectPath
         setTimeout(() => {
-          router.push(redirectPath)
+          router.push(target)
           router.refresh()
         }, 500)
       } else {
@@ -130,8 +134,12 @@ function LoginForm() {
 
         console.log('[Campfire Auth Client] Password login successful! Authenticated user:', data.user)
         showToast('Login successful. Redirecting to dashboard...')
+        const target =
+          redirectPath === '/app' || redirectPath === '/dashboard'
+            ? `/dashboard/${data.user?.slug || 'fan'}`
+            : redirectPath
         setTimeout(() => {
-          router.push(redirectPath)
+          router.push(target)
           router.refresh()
         }, 500)
       }

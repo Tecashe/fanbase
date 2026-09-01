@@ -56,31 +56,40 @@ import { AiQuestionGeneratorModal } from '@/components/admin/ai-question-generat
 import { PayoutManager } from '@/components/admin/payout-manager'
 import { CashPrizeClaimModal } from '@/components/features/cash-prize-claim-modal'
 import { CreatorData, QuizData, RewardData, LeaderboardRow, FanState } from '@/components/campfire-app'
+import { toUserSlug } from '@/lib/slug'
 
 type View = 'overview' | 'quizzes' | 'leaderboard' | 'rewards' | 'referrals' | 'badges' | 'admin'
 
-const sidebarNavItems: { id: View; label: string; icon: LucideIcon }[] = [
-  { id: 'overview', label: 'Overview', icon: Flame },
-  { id: 'quizzes', label: 'Quests & Challenges', icon: Zap },
-  { id: 'leaderboard', label: 'Live Rankings', icon: Trophy },
-  { id: 'rewards', label: 'Rewards & Cash Payouts', icon: Gift },
-  { id: 'referrals', label: 'Refer & Earn', icon: Share2 },
-  { id: 'badges', label: 'Trophy Cabinet', icon: Award },
-  { id: 'admin', label: 'Creator Studio', icon: LayoutDashboard },
+const sidebarNavItems: { id: View; label: string; icon: LucideIcon; pathSegment: string }[] = [
+  { id: 'overview', label: 'Overview', icon: Flame, pathSegment: '' },
+  { id: 'quizzes', label: 'Quests & Challenges', icon: Zap, pathSegment: 'quizzes' },
+  { id: 'leaderboard', label: 'Live Rankings', icon: Trophy, pathSegment: 'leaderboard' },
+  { id: 'rewards', label: 'Rewards & Cash Payouts', icon: Gift, pathSegment: 'rewards' },
+  { id: 'referrals', label: 'Refer & Earn', icon: Share2, pathSegment: 'referral' },
+  { id: 'badges', label: 'Trophy Cabinet', icon: Award, pathSegment: 'badges' },
+  { id: 'admin', label: 'Creator Studio', icon: LayoutDashboard, pathSegment: 'admin' },
 ]
 
 export default function DashboardLayout({
   creatorSlug = 'mkurugenzi',
   initialView = 'overview',
+  userSlug: propUserSlug,
 }: {
   creatorSlug?: string
   initialView?: View
+  userSlug?: string
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const youtubeStatusParam = searchParams.get('youtube_status')
 
   const [view, setView] = useState<View>(initialView)
+
+  useEffect(() => {
+    if (initialView) {
+      setView(initialView)
+    }
+  }, [initialView])
   const [isDark, setIsDark] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -401,15 +410,35 @@ export default function DashboardLayout({
     }
   }
 
+  const currentUserSlug =
+    propUserSlug ||
+    fanState?.slug ||
+    authUser?.slug ||
+    toUserSlug(fanState?.name || authUser?.displayName, authUser?.email, authUser?.id)
+
+  const handleNavigate = (newView: View) => {
+    setView(newView)
+    setMobileSidebarOpen(false)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+
+    if (typeof window !== 'undefined') {
+      const slug = currentUserSlug || 'fan'
+      const targetUrl =
+        newView === 'overview'
+          ? `/dashboard/${slug}`
+          : `/dashboard/${slug}/${newView === 'referrals' ? 'referral' : newView}`
+      window.history.pushState(null, '', targetUrl)
+    }
+  }
+
   const handleCopyInvite = () => {
-    const inviteLink = authUser
-      ? `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creator.slug}?ref=${authUser.id}`
-      : `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creator.slug}`
+    const slug = currentUserSlug || authUser?.id || 'fan'
+    const inviteLink = `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creator.slug}?ref=${encodeURIComponent(slug)}`
 
     try {
       navigator.clipboard?.writeText?.(inviteLink)
     } catch {}
-    showToast('Invite link copied to clipboard.')
+    showToast('Personalized invite link copied to clipboard.')
   }
 
   if (authChecking) {
@@ -479,11 +508,7 @@ export default function DashboardLayout({
               return (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    setView(item.id)
-                    setMobileSidebarOpen(false)
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
-                  }}
+                  onClick={() => handleNavigate(item.id)}
                   className={`w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-semibold tracking-wide transition-all ${
                     isActive
                       ? 'neu-inset-sm bg-background text-accent border border-accent/30 font-bold'
@@ -674,7 +699,7 @@ export default function DashboardLayout({
               onPlay={() => {
                 if (quizzes.length > 0) handleStartQuiz(quizzes[0])
               }}
-              onNavigate={setView}
+              onNavigate={handleNavigate}
               onConfirmWatch={handleConfirmWatch}
               onOpenYoutubeGate={() => setIsYoutubeGateOpen(true)}
             />
@@ -745,7 +770,12 @@ export default function DashboardLayout({
                 title="Refer Friends & Earn Points"
                 description="Share your personal link. When your friends register, you both get +100 bonus points credited in Postgres."
               />
-              <ReferralsSection creator={creator} fan={fanState} onCopyInvite={handleCopyInvite} />
+              <ReferralsSection
+                creator={creator}
+                fan={fanState}
+                userSlug={currentUserSlug}
+                onCopyInvite={handleCopyInvite}
+              />
             </div>
           )}
 
@@ -814,6 +844,7 @@ export default function DashboardLayout({
         score={quizScore}
         streak={fanState?.streak || 1}
         fanName={fanState?.name || 'Top Fan'}
+        userSlug={currentUserSlug}
         creatorName={creator.displayName}
         creatorSlug={creator.slug}
       />
@@ -1423,16 +1454,17 @@ function RewardCard({
 function ReferralsSection({
   creator,
   fan,
+  userSlug,
   onCopyInvite,
 }: {
   creator: CreatorData
   fan: FanState | null
+  userSlug?: string
   onCopyInvite: () => void
 }) {
-  const referralCode = fan ? `FIRE-${fan.id.slice(-6).toUpperCase()}` : 'JOIN-COMMUNITY'
-  const shareLink = fan
-    ? `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creator.slug}?ref=${fan.id}`
-    : `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creator.slug}`
+  const displaySlug = userSlug || fan?.slug || (fan ? `FIRE-${fan.id.slice(-6).toUpperCase()}` : 'JOIN-COMMUNITY')
+  const referralCode = displaySlug.toUpperCase()
+  const shareLink = `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creator.slug}?ref=${encodeURIComponent(displaySlug)}`
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Check, Copy, Flame, MessageCircle, Share2, X } from 'lucide-react'
+import { toUserSlug } from '@/lib/slug'
 
 export function ShareCardModal({
   isOpen,
@@ -10,6 +11,7 @@ export function ShareCardModal({
   score,
   streak,
   fanName,
+  userSlug,
   creatorName,
   creatorSlug,
   quizAttemptId,
@@ -20,6 +22,7 @@ export function ShareCardModal({
   score: number
   streak: number
   fanName: string
+  userSlug?: string
   creatorName: string
   creatorSlug: string
   quizAttemptId?: string
@@ -28,7 +31,8 @@ export function ShareCardModal({
 
   if (!isOpen) return null
 
-  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creatorSlug}`
+  const resolvedSlug = userSlug || toUserSlug(fanName)
+  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://campfire.app'}/${creatorSlug}?ref=${encodeURIComponent(resolvedSlug)}`
   const shareText = `I just scored ${score} pts on "${quizTitle}" at ${creatorName}'s Campfire! My streak is ${streak} days. Think you can beat me? Join the fan club: ${shareUrl}`
 
   const logShare = async (platform: string) => {
@@ -59,99 +63,82 @@ export function ShareCardModal({
     window.open(url, '_blank')
   }
 
-  const handleNativeShare = async () => {
-    logShare('native')
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      try {
-        await navigator.share({
-          title: `${creatorName} Campfire Quest`,
-          text: shareText,
-          url: shareUrl,
-        })
-      } catch {
-        // user cancelled or failed
-      }
-    } else {
-      handleCopy()
+  const handleCopyLink = () => {
+    logShare('copy_link')
+    try {
+      navigator.clipboard?.writeText?.(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    } catch {
+      // ignore
     }
-  }
-
-  const handleCopy = () => {
-    logShare('copy')
-    navigator.clipboard?.writeText?.(shareText)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2500)
   }
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-md neu-card p-6 sm:p-8 border border-border/90 bg-card shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
-        {/* Close Button */}
+      <div className="w-full max-w-md neu-card p-6 border border-border/90 bg-card shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
         <button
           onClick={onClose}
-          aria-label="Close share modal"
-          className="absolute top-5 right-5 grid size-8 place-items-center rounded-lg neu-raised-xs border border-border text-muted-foreground hover:text-foreground"
+          aria-label="Close share card"
+          className="absolute top-4 right-4 grid size-8 place-items-center rounded-lg neu-raised-xs border border-border text-muted-foreground hover:text-foreground"
         >
           <X className="size-4" />
         </button>
 
-        <div className="text-center mb-6">
+        <div className="text-center mb-5">
           <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 neu-pill-inset text-[10px] font-mono font-bold text-accent mb-2">
-            <Share2 className="size-3" /> SHAREABLE SCORE CARD
+            <Share2 className="size-3" /> SHARE YOUR RESULT
           </span>
-          <h2 className="font-serif text-2xl font-bold tracking-tight">Show Off Your Score</h2>
-          <p className="text-xs text-muted-foreground">Challenge friends on WhatsApp or Twitter / X</p>
+          <h2 className="font-serif text-xl font-bold">Challenge Your Friends</h2>
         </div>
 
-        {/* Tactile Score Card Preview */}
-        <div className="p-6 rounded-3xl neu-inset-sm border border-border/80 text-left bg-background relative overflow-hidden mb-6">
-          <div className="flex items-center justify-between mb-4">
+        {/* Dynamic Card Preview */}
+        <div className="p-5 rounded-2xl neu-inset-sm border border-border/80 bg-background text-left space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border/60">
             <div className="flex items-center gap-2">
-              <div className="grid size-7 place-items-center rounded-lg bg-card neu-raised-xs text-accent">
-                <Flame className="size-4 text-accent" />
-              </div>
-              <span className="font-serif text-sm font-bold">{creatorName}</span>
+              <Flame className="size-4 text-accent" />
+              <span className="font-serif font-bold text-xs">{creatorName} Campfire</span>
             </div>
-            <span className="text-[10px] font-mono text-accent font-bold px-2 py-0.5 rounded-full neu-pill">
-              {streak} DAY STREAK
-            </span>
+            <span className="text-[10px] font-mono font-bold text-accent">+{score} PTS</span>
           </div>
 
-          <p className="text-[10px] font-mono text-muted-foreground uppercase">{quizTitle}</p>
-          <p className="font-serif text-3xl font-bold mt-1 text-foreground">
-            +{score} <span className="font-sans text-xs font-normal text-muted-foreground">PTS</span>
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground font-mono">
-            Played by <span className="font-bold text-foreground">{fanName}</span>
-          </p>
+          <div>
+            <p className="text-[10px] font-mono text-muted-foreground uppercase">{quizTitle}</p>
+            <p className="font-serif text-lg font-bold mt-0.5">{fanName}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Active Streak: <strong className="text-foreground">{streak} Days</strong> · Live Standings
+            </p>
+          </div>
 
-          <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-[10px] font-mono text-accent">
-            <span>campfire.app/{creatorSlug}</span>
-            <span>TOP FAN</span>
+          <div className="pt-2 text-[10px] font-mono text-muted-foreground/80 truncate">
+            {shareUrl}
           </div>
         </div>
 
-        {/* Share Action Buttons */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Action Buttons */}
+        <div className="mt-6 space-y-2.5">
           <button
             onClick={handleWhatsAppShare}
-            className="neu-button-accent rounded-xl py-3 px-4 text-xs font-bold inline-flex items-center justify-center gap-2 text-accent"
+            className="w-full neu-button rounded-xl py-3 px-4 text-xs font-bold text-foreground inline-flex items-center justify-center gap-2 hover:text-[#25D366] transition-colors"
           >
             <MessageCircle className="size-4" />
-            <span>WhatsApp</span>
+            <span>Share to WhatsApp (+100 PTS per join)</span>
           </button>
+
           <button
             onClick={handleTwitterShare}
-            className="neu-button rounded-xl py-3 px-4 text-xs font-bold inline-flex items-center justify-center gap-2 text-foreground font-mono font-bold"
+            className="w-full neu-button rounded-xl py-3 px-4 text-xs font-bold text-foreground inline-flex items-center justify-center gap-2 hover:text-accent transition-colors"
           >
-            <span>Post on X</span>
+            <Share2 className="size-4" />
+            <span>Share to X / Twitter</span>
           </button>
+
           <button
-            onClick={handleNativeShare}
-            className="col-span-2 neu-button-primary rounded-xl py-3.5 px-4 text-xs font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2"
+            onClick={handleCopyLink}
+            className="w-full neu-button-primary rounded-xl py-3 px-4 text-xs font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2"
           >
             {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-            <span>{copied ? 'Card Link Copied!' : 'Share / Copy Link'}</span>
+            <span>{copied ? 'Link Copied!' : 'Copy Referral Link'}</span>
           </button>
         </div>
       </div>

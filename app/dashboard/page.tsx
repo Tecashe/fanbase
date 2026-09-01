@@ -1,12 +1,22 @@
-import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
+import { getAuthUser } from '@/lib/custom-auth'
+import { toUserSlug } from '@/lib/slug'
 import DashboardLayout from '@/components/dashboard/dashboard-layout'
+import { Suspense } from 'react'
 
 export const metadata = {
   title: 'Campfire — Dashboard',
   description: 'Play episode recall quests, climb the ranks, and claim creator perks.',
 }
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const authUser = await getAuthUser()
+
+  if (authUser) {
+    const slug = toUserSlug(authUser.name, authUser.email, authUser.id)
+    redirect(`/dashboard/${slug}`)
+  }
+
   return (
     <Suspense
       fallback={

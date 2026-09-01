@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/custom-auth'
 import { prisma } from '@/lib/db'
+import { toUserSlug } from '@/lib/slug'
 
 export async function GET(request: Request) {
   try {
@@ -88,15 +89,12 @@ export async function GET(request: Request) {
           select: { rewardId: true },
         })
 
-        // Fetch user unlocked badges
-        const badges = await prisma.userBadge.findMany({
-          where: { userId: authUser.id },
-          select: { badgeId: true },
-        })
+        const userSlug = toUserSlug(authUser.name, authUser.email, authUser.id)
 
         fanState = {
           id: authUser.id,
           name: authUser.name,
+          slug: userSlug,
           email: authUser.email,
           initials: authUser.name
             .split(' ')
@@ -115,10 +113,13 @@ export async function GET(request: Request) {
       }
     }
 
+    const userSlug = toUserSlug(authUser.name, authUser.email, authUser.id)
+
     return NextResponse.json({
       authenticated: true,
       user: {
         id: authUser.id,
+        slug: userSlug,
         email: authUser.email,
         displayName: authUser.name,
         role: authUser.role,
