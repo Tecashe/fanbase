@@ -154,6 +154,9 @@ export default function LandingPage() {
 
           {/* Nav Links */}
           <nav className="hidden md:flex items-center gap-6 text-xs font-semibold tracking-wide text-muted-foreground">
+            <Link href="/explore" className="hover:text-foreground transition-colors font-bold text-accent">
+              Explore Campfires
+            </Link>
             <a href="#how-it-works" className="hover:text-foreground transition-colors">
               How It Works
             </a>
@@ -163,9 +166,9 @@ export default function LandingPage() {
             <a href="#monetization" className="hover:text-foreground transition-colors">
               Cash Prizes
             </a>
-            <a href="#creator-studio" className="hover:text-foreground transition-colors">
-              Studio
-            </a>
+            <Link href="/creator/register" className="hover:text-foreground transition-colors">
+              For Creators
+            </Link>
             <a href="#faq" className="hover:text-foreground transition-colors">
               FAQ
             </a>
@@ -204,11 +207,11 @@ export default function LandingPage() {
                 </Link>
 
                 <Link
-                  href="/register"
+                  href="/explore"
                   className="neu-button-primary rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5"
                 >
-                  <span>Get Started</span>
-                  <ArrowRight className="size-3" />
+                  <span>Explore Campfires</span>
+                  <ChevronRight className="size-3" />
                 </Link>
               </>
             )}
@@ -254,18 +257,18 @@ export default function LandingPage() {
               ) : (
                 <>
                   <Link
-                    href="/register"
+                    href="/explore"
                     className="w-full sm:w-auto neu-button-primary rounded-xl px-8 py-4 text-sm font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2.5"
                   >
-                    <span>Join Official Fan Club</span>
+                    <span>Explore Creators & Play</span>
                     <ArrowRight className="size-4" />
                   </Link>
                   <Link
-                    href="/app"
+                    href="/creator/register"
                     className="w-full sm:w-auto neu-button rounded-xl px-8 py-4 text-sm font-bold tracking-wide text-foreground inline-flex items-center justify-center gap-2"
                   >
-                    <Play className="size-4 text-accent" />
-                    <span>Enter Dashboard</span>
+                    <Sparkles className="size-4 text-accent" />
+                    <span>Launch Your Creator Portal</span>
                   </Link>
                 </>
               )}

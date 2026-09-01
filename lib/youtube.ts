@@ -77,7 +77,7 @@ export async function verifyYouTubeSubscription({
   }
 
   try {
-    console.log(`[YouTube API Strict] Querying subscriptions for @Mkurugenziii (channel: ${targetChannelId})...`)
+    console.log(`[YouTube API Strict] Querying subscriptions for target channel: ${targetChannelId}...`)
 
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&forChannelId=${targetChannelId}`,
@@ -116,11 +116,11 @@ export async function verifyYouTubeSubscription({
 
     const data = await res.json()
     const isSubscribed = Array.isArray(data.items) && data.items.length > 0
-    console.log(`[YouTube API Strict] Subscribed to ${targetChannelId} (@Mkurugenziii)?`, isSubscribed)
+    console.log(`[YouTube API Strict] Subscribed to ${targetChannelId}?`, isSubscribed)
 
     return {
       verified: isSubscribed,
-      channelTitle: isSubscribed ? data.items[0]?.snippet?.title || 'Mkurugenzi (@Mkurugenziii)' : undefined,
+      channelTitle: isSubscribed ? data.items[0]?.snippet?.title || 'Verified Channel' : undefined,
     }
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'Network error during verification'

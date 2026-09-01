@@ -183,6 +183,9 @@ export default function DashboardLayout({
   const [isSponsorExportOpen, setIsSponsorExportOpen] = useState(false)
   const [isYoutubeGateOpen, setIsYoutubeGateOpen] = useState(false)
   const [isAiGeneratorOpen, setIsAiGeneratorOpen] = useState(false)
+  const [isCreatorSwitcherOpen, setIsCreatorSwitcherOpen] = useState(false)
+  const [allCreators, setAllCreators] = useState<any[]>([])
+  const [creatorSearchQuery, setCreatorSearchQuery] = useState('')
   const [selectedCashReward, setSelectedCashReward] = useState<RewardData | null>(null)
   const [unsubscribedAlert, setUnsubscribedAlert] = useState(false)
 
@@ -236,17 +239,18 @@ export default function DashboardLayout({
   // 2. Fetch live data
   const loadData = async () => {
     try {
-      const [creatorRes, leaderboardRes, analyticsRes] = await Promise.all([
+      const [creatorRes, leaderboardRes, analyticsRes, allCreatorsRes] = await Promise.all([
         fetch(`/api/creators/${creator.slug}/data`),
         fetch(`/api/creators/${creator.slug}/leaderboard`),
         fetch(`/api/creators/${creator.slug}/analytics`),
+        fetch(`/api/creators`),
       ])
 
       if (creatorRes.ok) {
         const data = await creatorRes.json()
         if (data.creator) setCreator(data.creator)
-        if (Array.isArray(data.quizzes) && data.quizzes.length > 0) setQuizzes(data.quizzes)
-        if (Array.isArray(data.rewards) && data.rewards.length > 0) {
+        if (Array.isArray(data.quizzes)) setQuizzes(data.quizzes)
+        if (Array.isArray(data.rewards)) {
           setRewards(
             data.rewards.map((r: any) => ({
               ...r,
@@ -263,6 +267,11 @@ export default function DashboardLayout({
       if (leaderboardRes.ok) {
         const data = await leaderboardRes.json()
         if (Array.isArray(data.leaderboard)) setLeaderboard(data.leaderboard)
+      }
+
+      if (allCreatorsRes.ok) {
+        const data = await allCreatorsRes.json()
+        if (Array.isArray(data.creators)) setAllCreators(data.creators)
       }
 
       if (analyticsRes.ok) {
@@ -613,6 +622,20 @@ export default function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Creator Switcher / Search Button */}
+            <button
+              onClick={() => setIsCreatorSwitcherOpen(true)}
+              className="neu-button hidden sm:inline-flex rounded-xl px-3 py-1.5 text-xs font-bold text-foreground items-center gap-2"
+              title="Explore and Switch Creators"
+            >
+              <div
+                className="size-3.5 rounded-full shadow-sm"
+                style={{ backgroundColor: creator.primaryColor || '#d11149' }}
+              />
+              <span className="truncate max-w-[130px]">{creator.displayName}</span>
+              <ChevronRight className="size-3 text-muted-foreground" />
+            </button>
+
             {/* Live Day Streak Pill */}
             <div className="hidden sm:flex items-center gap-1.5 rounded-full px-3 py-1 neu-pill-inset text-xs font-mono font-bold text-accent">
               <Flame className="size-3.5 text-accent" />
@@ -732,18 +755,28 @@ export default function DashboardLayout({
                 title="Quests & Challenges"
                 description="Episode recall quests synthesized from video transcripts. Correct answers award points directly to your balance."
               />
-              <div className="grid gap-5 md:grid-cols-3">
-                {quizzes.map((quiz, i) => (
-                  <QuestCard
-                    key={quiz.id}
-                    quiz={quiz}
-                    onPlay={() => handleStartQuiz(quiz)}
-                    isPrimary={i === 0}
-                    isWatched={watchedStories.includes(quiz.id)}
-                    onConfirmWatch={() => handleConfirmWatch(quiz.id)}
-                  />
-                ))}
-              </div>
+              {quizzes.length === 0 ? (
+                <div className="py-16 text-center rounded-2xl neu-inset-xs border border-border/80 space-y-3">
+                  <Zap className="size-8 mx-auto text-muted-foreground/40" />
+                  <p className="font-serif text-base font-bold text-foreground">No Active Quests Right Now</p>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    {creator.displayName} has not published challenges for this week yet. Check back when a new episode drops!
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-5 md:grid-cols-3">
+                  {quizzes.map((quiz, i) => (
+                    <QuestCard
+                      key={quiz.id}
+                      quiz={quiz}
+                      onPlay={() => handleStartQuiz(quiz)}
+                      isPrimary={i === 0}
+                      isWatched={watchedStories.includes(quiz.id)}
+                      onConfirmWatch={() => handleConfirmWatch(quiz.id)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -986,6 +1019,108 @@ export default function DashboardLayout({
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Creator Switcher & Discovery Modal */}
+      {isCreatorSwitcherOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-lg neu-card p-6 sm:p-8 border border-border/90 bg-card shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200 space-y-5">
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Users className="size-4 text-accent" />
+                <h3 className="font-serif text-lg font-bold">Switch Creator Campfire</h3>
+              </div>
+              <button
+                onClick={() => setIsCreatorSwitcherOpen(false)}
+                className="grid size-8 place-items-center rounded-lg neu-raised-xs border border-border text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search creators by name or handle..."
+                value={creatorSearchQuery}
+                onChange={(e) => setCreatorSearchQuery(e.target.value)}
+                className="w-full neu-input pl-10 pr-4 py-2.5 text-xs font-medium text-foreground rounded-xl"
+              />
+            </div>
+
+            <div className="max-h-64 overflow-y-auto space-y-2.5 pr-1">
+              {allCreators
+                .filter(
+                  (c) =>
+                    c.displayName.toLowerCase().includes(creatorSearchQuery.toLowerCase()) ||
+                    c.slug.toLowerCase().includes(creatorSearchQuery.toLowerCase()),
+                )
+                .map((c) => {
+                  const isCurrent = c.slug === creator.slug
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setIsCreatorSwitcherOpen(false)
+                        router.push(`/${c.slug}`)
+                      }}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
+                        isCurrent
+                          ? 'neu-inset-sm border-2 border-accent bg-background'
+                          : 'neu-raised-xs border border-border bg-card hover:border-accent/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="grid size-9 place-items-center rounded-xl text-xs font-bold text-white shadow-sm font-serif"
+                          style={{ backgroundColor: c.brandPrimaryColor || '#d11149' }}
+                        >
+                          {c.initials}
+                        </div>
+                        <div>
+                          <p className="font-serif text-sm font-bold text-foreground leading-none">
+                            {c.displayName}
+                          </p>
+                          <p className="text-[10px] font-mono text-muted-foreground mt-0.5">{c.handle}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isCurrent ? (
+                          <span className="rounded-full px-2 py-0.5 text-[9px] font-mono font-bold bg-accent text-accent-foreground">
+                            ACTIVE
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            {c.stats.totalQuizzes} Quests
+                          </span>
+                        )}
+                        <ChevronRight className="size-3.5 text-muted-foreground" />
+                      </div>
+                    </button>
+                  )
+                })}
+            </div>
+
+            <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
+              <Link
+                href="/explore"
+                onClick={() => setIsCreatorSwitcherOpen(false)}
+                className="font-mono text-accent font-bold hover:underline"
+              >
+                Browse All Creators →
+              </Link>
+              <Link
+                href="/creator/register"
+                onClick={() => setIsCreatorSwitcherOpen(false)}
+                className="font-mono text-muted-foreground hover:text-foreground"
+              >
+                Launch New Campfire +
+              </Link>
             </div>
           </div>
         </div>
