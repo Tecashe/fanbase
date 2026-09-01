@@ -106,10 +106,13 @@ export async function getAuthUser() {
 
   const user = await validateSession(token)
   if (user) {
+    const fallbackName = user.displayName || (user.email ? user.email.split('@')[0] : user.phone ? `Fan (${user.phone.slice(-4)})` : 'Fan')
     return {
       id: user.id,
       email: user.email,
-      name: user.displayName || user.email.split('@')[0],
+      phone: user.phone,
+      name: fallbackName,
+      displayName: fallbackName,
       avatarUrl: user.avatarUrl,
       role: user.role,
       links: user.links,

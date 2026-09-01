@@ -97,12 +97,22 @@ export async function GET(request: Request) {
           })
         } else {
           console.log('[Campfire YouTube Auth Callback] Existing user found in Neon Postgres:', user.id)
+          // Update displayName and avatar from Google profile if available
+          if (googleProfile.name && (!user.displayName || user.displayName === user.email?.split('@')[0])) {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                displayName: googleProfile.name,
+                avatarUrl: googleProfile.picture || user.avatarUrl,
+              },
+            })
+          }
         }
 
         authUser = {
           id: user.id,
           email: user.email || normalizedEmail,
-          displayName: user.displayName || 'Fan',
+          displayName: user.displayName || googleProfile.name || 'Fan',
         }
 
         // Establish session cookie
@@ -120,14 +130,14 @@ export async function GET(request: Request) {
         console.log('[Campfire YouTube Auth Callback] Session established and cookie written.')
       }
 
-      // 3. Strictly Verify Subscription against @Mkurugenziii (UCUgsdMs1PqV9lKItnP0UxyQ)
+      // 3. Strictly Verify Subscription against @Mkurugenziii (UC4tjY2tTltEKePusozUxtSA)
       if (authUser) {
         const creator = await prisma.creator.findUnique({
           where: { slug: creatorSlug },
         })
 
         if (creator) {
-          const targetChannelId = creator.youtubeChannelId || 'UCUgsdMs1PqV9lKItnP0UxyQ'
+          const targetChannelId = creator.youtubeChannelId || 'UC4tjY2tTltEKePusozUxtSA'
 
           if (accessToken) {
             console.log(`[Campfire YouTube Auth Callback] Querying YouTube Data API for channel: ${targetChannelId}...`)
