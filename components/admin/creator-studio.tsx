@@ -366,11 +366,11 @@ export default function CreatorStudio({
         </div>
       </header>
 
-      <div className="flex-1 flex max-w-7xl w-full mx-auto">
+      <div className="flex-1 flex w-full min-h-[calc(100vh-4rem)]">
         {/* Sidebar Navigation */}
         <aside
-          className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border/80 p-4 flex flex-col justify-between transition-transform duration-300 md:translate-x-0 md:static ${
-            mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          className={`fixed inset-y-0 left-0 z-50 w-64 bg-card/80 backdrop-blur-xl border-r border-border/80 p-5 flex flex-col justify-between transition-transform duration-300 md:translate-x-0 md:sticky md:top-16 md:h-[calc(100vh-4rem)] shrink-0 ${
+            mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
           }`}
         >
           <div className="space-y-6">
@@ -430,8 +430,8 @@ export default function CreatorStudio({
           </div>
         </aside>
 
-        {/* Main Content Area */}
-        <main className="flex-1 p-4 sm:p-8 max-w-5xl w-full overflow-x-hidden space-y-8">
+        {/* Main Content Area - Full Responsive Width */}
+        <main className="flex-1 p-6 sm:p-8 lg:p-10 w-full min-w-0 space-y-8">
           {/* TAB A: OVERVIEW */}
           {tab === 'overview' && (
             <div className="space-y-8">

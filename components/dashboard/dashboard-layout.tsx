@@ -731,8 +731,8 @@ export default function DashboardLayout({
           </div>
         )}
 
-        {/* Main Content Viewport */}
-        <main className="flex-1 p-4 sm:p-8 max-w-5xl w-full mx-auto space-y-10">
+        {/* Main Content Viewport - Full Responsive Width */}
+        <main className="flex-1 p-6 sm:p-8 lg:p-10 w-full min-w-0 space-y-10">
           {view === 'overview' && (
             <OverviewSection
               creator={creator}
