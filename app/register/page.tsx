@@ -24,6 +24,8 @@ function RegisterForm() {
   const creatorSlug = searchParams.get('creator') || 'mkurugenzi'
   const refCode = searchParams.get('ref')
 
+  const roleParam = searchParams.get('role')
+  const [accountType, setAccountType] = useState<'fan' | 'creator'>(roleParam === 'creator' ? 'creator' : 'fan')
   const [inputMode, setInputMode] = useState<'email' | 'phone'>('email')
   const [step, setStep] = useState<'details' | 'verify'>('details')
   const [displayName, setDisplayName] = useState('')
@@ -149,41 +151,40 @@ function RegisterForm() {
       const verifyRes = await fetch('/api/auth/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, code: verificationCode, creatorSlug }),
+        body: JSON.stringify({ identifier, code: verificationCode }),
       })
 
       const verifyData = await verifyRes.json()
-      console.log('[Campfire Auth Client] Verify-code result:', verifyData)
+      console.log('[Campfire Auth Client] Verify code response:', verifyData)
       if (!verifyRes.ok) throw new Error(verifyData.error || 'Invalid verification code')
 
-      const regRes = await fetch('/api/auth/register', {
+      const registerRes = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          displayName,
           identifier,
           password,
+          displayName: displayName.trim() || undefined,
           creatorSlug,
-          referrerId,
+          referrerId: referrerId.trim() || undefined,
         }),
       })
 
-      const regData = await regRes.json()
-      console.log('[Campfire Auth Client] Registration result:', regData)
-      if (!regRes.ok) throw new Error(regData.error || 'Registration failed')
+      const registerData = await registerRes.json()
+      console.log('[Campfire Auth Client] Register account response:', registerData)
+      if (!registerRes.ok) throw new Error(registerData.error || 'Failed to create user account')
 
-      console.log('[Campfire Auth Client] User registered successfully! Redirecting...')
-      showToast('Account created successfully! Redirecting to dashboard...')
-      const target =
+      showToast('Registration successful! Launching campfire...')
+
+      const finalUserSlug = registerData.user?.slug || 'fan'
+      const destination =
         redirectPath === '/app' || redirectPath === '/dashboard'
-          ? `/dashboard/${regData.user?.slug || 'fan'}`
+          ? `/dashboard/${finalUserSlug}`
           : redirectPath
-      setTimeout(() => {
-        router.push(target)
-        router.refresh()
-      }, 500)
+
+      router.replace(destination)
     } catch (err: unknown) {
-      console.error('[Campfire Auth Client] Registration error:', err)
+      console.error('[Campfire Auth Client] Step 2 error:', err)
       setError(err instanceof Error ? err.message : 'Registration failed')
     } finally {
       setLoading(false)
@@ -220,71 +221,132 @@ function RegisterForm() {
         </h1>
         <p className="text-xs font-mono text-muted-foreground mt-1">
           {step === 'details'
-            ? 'Join the campfire, play episode recall quests, and climb the ranks'
+            ? 'Join the platform as a fan or launch your creator portal'
             : `Enter the 6-digit code sent to ${identifier}`}
         </p>
       </div>
 
-      {referrerId && step === 'details' && (
-        <div className="mb-4 flex items-center gap-2 rounded-xl p-2.5 neu-inset-xs border border-accent/30 text-xs font-mono text-accent">
-          <Sparkles className="size-4 shrink-0 text-accent" />
-          <span>+100 Bonus Points unlocked from your friend's invite!</span>
-        </div>
-      )}
-
-      {/* 1-Click YouTube / Google Sign Up */}
       {step === 'details' && (
         <>
-          <button
-            type="button"
-            disabled={googleLoading}
-            onClick={handleGoogleAuth}
-            className="w-full mb-6 neu-button-accent rounded-xl py-3 px-4 text-xs font-bold text-accent inline-flex items-center justify-center gap-2.5 transition-all hover:scale-[1.01] active:scale-[0.99]"
-          >
-            <Video className={`size-4 ${googleLoading ? 'animate-spin' : ''}`} />
-            <span>{googleLoading ? 'Connecting to Google...' : 'Sign Up with YouTube / Google'}</span>
-          </button>
+          {/* Account Type Selector (Fan vs Creator) */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <button
+              type="button"
+              onClick={() => setAccountType('fan')}
+              className={`p-3.5 rounded-2xl text-left transition-all ${
+                accountType === 'fan'
+                  ? 'neu-inset-sm border-2 border-accent bg-background'
+                  : 'neu-raised-xs border border-border bg-card hover:border-accent/40'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-lg">👥</span>
+                {accountType === 'fan' && <Check className="size-3.5 text-accent" />}
+              </div>
+              <p className="font-serif font-bold text-xs text-foreground">I am a Fan</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+                Play quests, climb ranks, & win cash
+              </p>
+            </button>
 
-          <div className="relative mb-6 text-center">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border/60" />
+            <button
+              type="button"
+              onClick={() => setAccountType('creator')}
+              className={`p-3.5 rounded-2xl text-left transition-all ${
+                accountType === 'creator'
+                  ? 'neu-inset-sm border-2 border-accent bg-background'
+                  : 'neu-raised-xs border border-border bg-card hover:border-accent/40'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-lg">🎬</span>
+                {accountType === 'creator' && <Check className="size-3.5 text-accent" />}
+              </div>
+              <p className="font-serif font-bold text-xs text-foreground">I am a Creator</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+                Launch fan club & monetize audience
+              </p>
+            </button>
+          </div>
+
+          {accountType === 'creator' ? (
+            <div className="space-y-4 text-center py-2">
+              <div className="p-4 rounded-2xl neu-inset-xs border border-border bg-background space-y-2 text-left">
+                <p className="font-serif text-sm font-bold text-foreground">Launch Your Creator Campfire</p>
+                <p className="text-xs text-muted-foreground">
+                  Set up your custom portal slug, connect your YouTube channel, customize your brand theme, and publish your first lore quest in 60 seconds.
+                </p>
+              </div>
+
+              <Link
+                href="/creator/register"
+                className="neu-button-primary w-full rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2"
+              >
+                <span>Open Creator Onboarding Wizard →</span>
+              </Link>
             </div>
-            <span className="relative bg-card px-3 text-[10px] font-mono uppercase text-muted-foreground">
-              or register with credentials
-            </span>
-          </div>
+          ) : (
+            <>
+              {referrerId && (
+                <div className="mb-4 flex items-center gap-2 rounded-xl p-2.5 neu-inset-xs border border-accent/30 text-xs font-mono text-accent">
+                  <Sparkles className="size-4 shrink-0 text-accent" />
+                  <span>+100 Bonus Points unlocked from your friend's invite!</span>
+                </div>
+              )}
 
-          {/* Mode Selector */}
-          <div className="flex items-center justify-center gap-4 mb-4 text-xs font-mono">
-            <button
-              type="button"
-              onClick={() => {
-                setInputMode('email')
-                setIdentifier('')
-              }}
-              className={`flex items-center gap-1.5 pb-1 border-b-2 font-bold transition-all ${
-                inputMode === 'email'
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Mail className="size-3.5" /> Email
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setInputMode('phone')
-                setIdentifier('')
-              }}
-              className={`flex items-center gap-1.5 pb-1 border-b-2 font-bold transition-all ${
-                inputMode === 'phone'
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Phone className="size-3.5" /> Phone Number (M-Pesa)
-            </button>
-          </div>
+              {/* 1-Click YouTube / Google Sign Up */}
+              <button
+                type="button"
+                disabled={googleLoading}
+                onClick={handleGoogleAuth}
+                className="w-full mb-6 neu-button-accent rounded-xl py-3 px-4 text-xs font-bold text-accent inline-flex items-center justify-center gap-2.5 transition-all hover:scale-[1.01] active:scale-[0.99]"
+              >
+                <Video className={`size-4 ${googleLoading ? 'animate-spin' : ''}`} />
+                <span>{googleLoading ? 'Connecting to Google...' : 'Sign Up with YouTube / Google'}</span>
+              </button>
+
+              <div className="relative mb-6 text-center">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border/60" />
+                </div>
+                <span className="relative bg-card px-3 text-[10px] font-mono uppercase text-muted-foreground">
+                  or register with credentials
+                </span>
+              </div>
+
+              {/* Mode Selector */}
+              <div className="flex items-center justify-center gap-4 mb-4 text-xs font-mono">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputMode('email')
+                    setIdentifier('')
+                  }}
+                  className={`flex items-center gap-1.5 pb-1 border-b-2 font-bold transition-all ${
+                    inputMode === 'email'
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Mail className="size-3.5" /> Email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputMode('phone')
+                    setIdentifier('')
+                  }}
+                  className={`flex items-center gap-1.5 pb-1 border-b-2 font-bold transition-all ${
+                    inputMode === 'phone'
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Phone className="size-3.5" /> Phone Number (M-Pesa)
+                </button>
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -295,72 +357,74 @@ function RegisterForm() {
       )}
 
       {step === 'details' ? (
-        <form onSubmit={handleProceedToVerify} className="space-y-4">
-          <div>
-            <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1.5">
-              Display Name / Handle
-            </label>
-            <div className="relative">
-              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <input
-                type="text"
-                required
-                placeholder="e.g. Amina K."
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium"
-              />
+        accountType === 'fan' && (
+          <form onSubmit={handleProceedToVerify} className="space-y-4">
+            <div>
+              <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1.5">
+                Display Name / Handle
+              </label>
+              <div className="relative">
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Amina K."
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium"
+                />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1.5">
-              {inputMode === 'email' ? 'Email Address' : 'Phone Number'}
-            </label>
-            <div className="relative">
-              {inputMode === 'email' ? (
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              ) : (
-                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              )}
-              <input
-                type={inputMode === 'email' ? 'email' : 'tel'}
-                required
-                placeholder={inputMode === 'email' ? 'you@example.com' : '+254 712 345 678'}
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium"
-              />
+            <div>
+              <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1.5">
+                {inputMode === 'email' ? 'Email Address' : 'Phone Number'}
+              </label>
+              <div className="relative">
+                {inputMode === 'email' ? (
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                ) : (
+                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                )}
+                <input
+                  type={inputMode === 'email' ? 'email' : 'tel'}
+                  required
+                  placeholder={inputMode === 'email' ? 'you@example.com' : '+254 712 345 678'}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium"
+                />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1.5">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <input
-                type="password"
-                required
-                placeholder="•••••••• (Min 6 characters)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium"
-              />
+            <div>
+              <label className="text-[11px] font-mono uppercase text-muted-foreground block mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <input
+                  type="password"
+                  required
+                  placeholder="•••••••• (Min 6 characters)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full neu-input pl-10 pr-3.5 py-2.5 text-xs text-foreground font-medium"
+                />
+              </div>
             </div>
-          </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-6 w-full neu-button-primary rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : 'hidden'}`} />
-            <span>{loading ? 'Sending Code...' : 'Continue to Verification'}</span>
-            {!loading && <ArrowRight className="size-3.5" />}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-6 w-full neu-button-primary rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider inline-flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : 'hidden'}`} />
+              <span>{loading ? 'Sending Code...' : 'Continue to Verification'}</span>
+              {!loading && <ArrowRight className="size-3.5" />}
+            </button>
+          </form>
+        )
       ) : (
         <form onSubmit={handleCompleteRegistration} className="space-y-4">
           <div>
