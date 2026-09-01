@@ -809,14 +809,21 @@ export default function DashboardLayout({
                 <PageHeader
                   eyebrow="Creator Studio"
                   title="Studio & Monetization"
-                  description="Generate AI quests from video transcripts, disburse winner cash prizes, and inspect live analytics."
+                  description="Manage stories, build AI quizzes, disburse winner payouts, inspect superfan CRM, and export sponsor pitch decks."
                 />
-                <div className="flex items-center gap-2.5">
-                  <button
-                    onClick={() => setIsAiGeneratorOpen(true)}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <Link
+                    href={`/admin/${creator.slug}`}
                     className="neu-button-primary rounded-xl py-3 px-4 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-2"
                   >
-                    <Sparkles className="size-4" />
+                    <LayoutDashboard className="size-4" />
+                    <span>Launch Full 11-Module Studio →</span>
+                  </Link>
+                  <button
+                    onClick={() => setIsAiGeneratorOpen(true)}
+                    className="neu-button rounded-xl py-3 px-4 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-2 text-foreground"
+                  >
+                    <Sparkles className="size-4 text-accent" />
                     <span>AI Quest Studio</span>
                   </button>
                   <button
@@ -827,6 +834,23 @@ export default function DashboardLayout({
                     <span>Sponsor Report</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Quick Jump Bar */}
+              <div className="p-4 rounded-2xl neu-card border border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="ruby-dot animate-pulse" />
+                  <span className="text-xs font-mono font-bold text-foreground">
+                    Dedicated Admin URL: <code className="text-accent">/admin/{creator.slug}</code>
+                  </span>
+                </div>
+                <Link
+                  href={`/admin/${creator.slug}`}
+                  className="text-xs font-mono font-bold text-accent hover:underline inline-flex items-center gap-1"
+                >
+                  <span>Open Full Creator Studio</span>
+                  <ChevronRight className="size-3.5" />
+                </Link>
               </div>
 
               <PayoutManager
